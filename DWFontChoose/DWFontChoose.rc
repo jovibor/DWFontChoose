@@ -1,0 +1,113 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "DWFontChooseRes.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "winres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// English (United States) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "DWFontChooseRes.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""winres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_DWFONTCHOOSE DIALOGEX 0, 0, 461, 285
+STYLE DS_SETFONT | DS_CENTER | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_POPUP | WS_CLIPCHILDREN | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+CAPTION "Font Choose Dialog"
+FONT 9, "Microsoft Sans Serif", 400, 0, 0x0
+BEGIN
+    CONTROL         "",IDC_CUSTOM_FONT_FAMILY,"DWFontChooseFontEnum",WS_TABSTOP,0,0,230,150
+    CONTROL         "",IDC_CUSTOM_FONT_FACE,"DWFontChooseFontEnum",WS_TABSTOP,231,0,230,150
+    CONTROL         "Custom1",IDC_CUSTOM_FONT_SAMPLE,"DWFontChooseSampleText",WS_TABSTOP,0,151,461,113
+    LTEXT           "Size:",IDC_STATIC_SIZE,7,270,16,8
+    EDITTEXT        IDC_EDIT_FONT_SIZE,24,268,30,12,ES_AUTOHSCROLL
+    LTEXT           "Weight:",IDC_STATIC_WEIGHT,61,270,24,8
+    COMBOBOX        IDC_COMBO_FONT_WEIGHT,89,268,63,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Stretch:",IDC_STATIC_STRETCH,158,270,24,8
+    COMBOBOX        IDC_COMBO_FONT_STRETCH,185,268,63,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Style:",IDC_STATIC_STYLE,254,270,18,8
+    COMBOBOX        IDC_COMBO_FONT_STYLE,274,268,63,30,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON      "OK",IDC_BTN_OK,354,267,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,406,267,50,14
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO
+BEGIN
+    IDD_DWFONTCHOOSE, DIALOG
+    BEGIN
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// AFX_DIALOG_LAYOUT
+//
+
+IDD_DWFONTCHOOSE AFX_DIALOG_LAYOUT
+BEGIN
+    0
+END
+
+#endif    // English (United States) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+
