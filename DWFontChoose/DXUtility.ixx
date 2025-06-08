@@ -134,6 +134,7 @@ export namespace DXUT {
 		assert(pDXGISwapChain);
 		comptr<IDXGISurface> pDXGISurface;
 		pDXGISwapChain->GetBuffer(0, __uuidof(**(pDXGISurface.get_addr())), pDXGISurface);
+		assert(pDXGISurface);
 		if (!pDXGISurface) { return{ }; }
 
 		ID2D1Bitmap1* pD2DBitmap1;
@@ -181,6 +182,7 @@ export namespace DXUT {
 		comptr<IDWriteTextLayout> pTextLayout;
 		DWGetFactory()->CreateTextLayout(wsv.data(), static_cast<UINT32>(wsv.size()), pTextFormat, flWidthMax,
 			flHeightMax, pTextLayout);
+		assert(pTextLayout);
 		if (!pTextLayout) { return { }; }
 
 		IDWriteTextLayout1* pTextLayout1;
@@ -194,6 +196,7 @@ export namespace DXUT {
 		comptr<IDWriteTextLayout> pTextLayout;
 		DWGetFactory()->CreateGdiCompatibleTextLayout(wsv.data(), static_cast<UINT32>(wsv.size()), pTextFormat, flWidthMax,
 			flHeightMax, 1.F, nullptr, FALSE, pTextLayout);
+		assert(pTextLayout);
 		if (!pTextLayout) { return { }; }
 
 		IDWriteTextLayout1* pTextLayout1;
@@ -221,6 +224,7 @@ export namespace DXUT {
 
 	struct DWFONTFAMILYINFO {
 		std::wstring                wstrFamilyName; //DWRITE_FONT_PROPERTY_ID_FAMILY_NAME
+		std::wstring                wstrLocale;
 		std::vector<DWFONTFACEINFO> vecFontFaceInfo;
 	};
 
@@ -265,8 +269,14 @@ export namespace DXUT {
 
 		comptr<IDWriteFontSet> pSysFontSet;
 		DWGetFactory()->GetSystemFontSet(pSysFontSet);
+		assert(pSysFontSet);
+		if (!pSysFontSet) { return{ }; }
+
 		comptr<IDWriteStringList> pStringsFamilyName;
 		pSysFontSet->GetPropertyValues(DWRITE_FONT_PROPERTY_ID_FAMILY_NAME, pwszLocale, pStringsFamilyName);
+		assert(pStringsFamilyName);
+		if (!pStringsFamilyName) { return{ }; }
+
 		const auto iCountFontFamilies = pStringsFamilyName->GetCount(); //How many unique Font Family Names.
 		std::vector<DWFONTFAMILYINFO> vecFontInfo;
 		vecFontInfo.reserve(iCountFontFamilies);
@@ -332,7 +342,7 @@ export namespace DXUT {
 					.vecSemanticTag { lmbGetWstrAll(pStrSemanticTag) } });
 			}
 
-			vecFontInfo.emplace_back(DWFONTFAMILYINFO { .wstrFamilyName { buffFamilyName },
+			vecFontInfo.emplace_back(DWFONTFAMILYINFO { .wstrFamilyName { buffFamilyName }, .wstrLocale { pwszLocale },
 				.vecFontFaceInfo { std::move(vecFontFaceInfo) } });
 		}
 
