@@ -205,25 +205,22 @@ export namespace DXUT {
 	}
 
 	struct DWFONTFACEINFO {
-		std::wstring wstrWeightStretchStyleFamilyName;    //DWRITE_FONT_PROPERTY_ID_WEIGHT_STRETCH_STYLE_FAMILY_NAME
 		std::wstring wstrTypographicFamilyName;           //DWRITE_FONT_PROPERTY_ID_TYPOGRAPHIC_FAMILY_NAME
 		std::wstring wstrWeightStretchStyleFaceName;      //DWRITE_FONT_PROPERTY_ID_WEIGHT_STRETCH_STYLE_FACE_NAME
 		std::wstring wstrFullName;                        //DWRITE_FONT_PROPERTY_ID_FULL_NAME
 		std::wstring wstrWin32FamilyName;                 //DWRITE_FONT_PROPERTY_ID_WIN32_FAMILY_NAME
 		std::wstring wstrPostScriptName;                  //DWRITE_FONT_PROPERTY_ID_POSTSCRIPT_NAME
+		std::vector<std::wstring> vecDesignScriptLangTag; //DWRITE_FONT_PROPERTY_ID_DESIGN_SCRIPT_LANGUAGE_TAG
+		std::vector<std::wstring> vecSuppScriptLangTag;   //DWRITE_FONT_PROPERTY_ID_SUPPORTED_SCRIPT_LANGUAGE_TAG
+		std::vector<std::wstring> vecSemanticTag;         //DWRITE_FONT_PROPERTY_ID_SEMANTIC_TAG
 		std::wstring wstrWeight;                          //DWRITE_FONT_PROPERTY_ID_WEIGHT
 		std::wstring wstrStretch;                         //DWRITE_FONT_PROPERTY_ID_STRETCH
 		std::wstring wstrStyle;                           //DWRITE_FONT_PROPERTY_ID_STYLE
 		std::wstring wstrTypographicFaceName;             //DWRITE_FONT_PROPERTY_ID_TYPOGRAPHIC_FACE_NAME
-		std::wstring wstrPrefferedFamilyName;             //DWRITE_FONT_PROPERTY_ID_PREFERRED_FAMILY_NAME
-		std::wstring wstrFaceName;                        //DWRITE_FONT_PROPERTY_ID_FACE_NAME
-		std::vector<std::wstring> vecDesignScriptLangTag; //DWRITE_FONT_PROPERTY_ID_DESIGN_SCRIPT_LANGUAGE_TAG
-		std::vector<std::wstring> vecSuppScriptLangTag;   //DWRITE_FONT_PROPERTY_ID_SUPPORTED_SCRIPT_LANGUAGE_TAG
-		std::vector<std::wstring> vecSemanticTag;         //DWRITE_FONT_PROPERTY_ID_SEMANTIC_TAG
 	};
 
 	struct DWFONTFAMILYINFO {
-		std::wstring                wstrFamilyName; //DWRITE_FONT_PROPERTY_ID_FAMILY_NAME
+		std::wstring                wstrFamilyName; //DWRITE_FONT_PROPERTY_ID_WEIGHT_STRETCH_STYLE_FAMILY_NAME
 		std::wstring                wstrLocale;
 		std::vector<DWFONTFACEINFO> vecFontFaceInfo;
 	};
@@ -273,7 +270,8 @@ export namespace DXUT {
 		if (!pSysFontSet) { return{ }; }
 
 		comptr<IDWriteStringList> pStringsFamilyName;
-		pSysFontSet->GetPropertyValues(DWRITE_FONT_PROPERTY_ID_FAMILY_NAME, pwszLocale, pStringsFamilyName);
+		pSysFontSet->GetPropertyValues(DWRITE_FONT_PROPERTY_ID_WEIGHT_STRETCH_STYLE_FAMILY_NAME, pwszLocale,
+			pStringsFamilyName);
 		assert(pStringsFamilyName);
 		if (!pStringsFamilyName) { return{ }; }
 
@@ -284,7 +282,7 @@ export namespace DXUT {
 		for (auto iFontFamily = 0U; iFontFamily < iCountFontFamilies; ++iFontFamily) {
 			wchar_t buffFamilyName[64];
 			pStringsFamilyName->GetString(iFontFamily, buffFamilyName, std::size(buffFamilyName));
-			const DWRITE_FONT_PROPERTY fp { .propertyId { DWRITE_FONT_PROPERTY_ID_FAMILY_NAME },
+			const DWRITE_FONT_PROPERTY fp { .propertyId { DWRITE_FONT_PROPERTY_ID_WEIGHT_STRETCH_STYLE_FAMILY_NAME },
 				.propertyValue { buffFamilyName } };
 			comptr<IDWriteFontSet> pFamilyNameSet;
 			pSysFontSet->GetMatchingFonts(&fp, 1, pFamilyNameSet);
@@ -294,52 +292,43 @@ export namespace DXUT {
 
 			for (auto iFontFace = 0U; iFontFace < iCountFontFaces; ++iFontFace) {
 				BOOL f;
-				comptr<IDWriteLocalizedStrings> pStrWeightStretchStyleFamilyName;
 				comptr<IDWriteLocalizedStrings> pStrTypographicFamilyName;
 				comptr<IDWriteLocalizedStrings> pStrWeightStretchStyleFaceName;
 				comptr<IDWriteLocalizedStrings> pStrFullName;
 				comptr<IDWriteLocalizedStrings> pStrWin32FamilyName;
 				comptr<IDWriteLocalizedStrings> pStrPostScriptName;
+				comptr<IDWriteLocalizedStrings> pStrDesignScriptLangTag;
+				comptr<IDWriteLocalizedStrings> pStrSuppScriptLangTag;
+				comptr<IDWriteLocalizedStrings> pStrSemanticTag;
 				comptr<IDWriteLocalizedStrings> pStrWeight;
 				comptr<IDWriteLocalizedStrings> pStrStretch;
 				comptr<IDWriteLocalizedStrings> pStrStyle;
 				comptr<IDWriteLocalizedStrings> pStrTypographicFaceName;
-				comptr<IDWriteLocalizedStrings> pStrPrefferedFamilyName;
-				comptr<IDWriteLocalizedStrings> pStrFaceName;
-				comptr<IDWriteLocalizedStrings> pStrDesignScriptLangTag;
-				comptr<IDWriteLocalizedStrings> pStrSuppScriptLangTag;
-				comptr<IDWriteLocalizedStrings> pStrSemanticTag;
-				pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_WEIGHT_STRETCH_STYLE_FAMILY_NAME, &f, pStrWeightStretchStyleFamilyName);
 				pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_TYPOGRAPHIC_FAMILY_NAME, &f, pStrTypographicFamilyName);
 				pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_WEIGHT_STRETCH_STYLE_FACE_NAME, &f, pStrWeightStretchStyleFaceName);
 				pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_FULL_NAME, &f, pStrFullName);
 				pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_WIN32_FAMILY_NAME, &f, pStrWin32FamilyName);
 				pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_POSTSCRIPT_NAME, &f, pStrPostScriptName);
+				pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_DESIGN_SCRIPT_LANGUAGE_TAG, &f, pStrDesignScriptLangTag);
+				pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_SUPPORTED_SCRIPT_LANGUAGE_TAG, &f, pStrSuppScriptLangTag);
+				pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_SEMANTIC_TAG, &f, pStrSemanticTag);
 				pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_WEIGHT, &f, pStrWeight);
 				pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_STRETCH, &f, pStrStretch);
 				pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_STYLE, &f, pStrStyle);
 				pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_TYPOGRAPHIC_FACE_NAME, &f, pStrTypographicFaceName);
-				pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_PREFERRED_FAMILY_NAME, &f, pStrPrefferedFamilyName);
-				pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_FACE_NAME, &f, pStrFaceName);
-				pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_DESIGN_SCRIPT_LANGUAGE_TAG, &f, pStrDesignScriptLangTag);
-				pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_SUPPORTED_SCRIPT_LANGUAGE_TAG, &f, pStrSuppScriptLangTag);
-				pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_SEMANTIC_TAG, &f, pStrSemanticTag);
 				vecFontFaceInfo.emplace_back(DWFONTFACEINFO {
-					.wstrWeightStretchStyleFamilyName { lmbGetWstrLocale(pStrWeightStretchStyleFamilyName) },
 					.wstrTypographicFamilyName { lmbGetWstrLocale(pStrTypographicFamilyName) },
 					.wstrWeightStretchStyleFaceName { lmbGetWstrLocale(pStrWeightStretchStyleFaceName) },
 					.wstrFullName { lmbGetWstrLocale(pStrFullName) },
 					.wstrWin32FamilyName { lmbGetWstrLocale(pStrWin32FamilyName) },
 					.wstrPostScriptName { lmbGetWstrLocale(pStrPostScriptName) },
+					.vecDesignScriptLangTag { lmbGetWstrAll(pStrDesignScriptLangTag) },
+					.vecSuppScriptLangTag { lmbGetWstrAll(pStrSuppScriptLangTag) },
+					.vecSemanticTag { lmbGetWstrAll(pStrSemanticTag) },
 					.wstrWeight { lmbGetWstrFirst(pStrWeight) },
 					.wstrStretch { lmbGetWstrFirst(pStrStretch) },
 					.wstrStyle { lmbGetWstrFirst(pStrStyle) },
-					.wstrTypographicFaceName { lmbGetWstrLocale(pStrTypographicFaceName) },
-					.wstrPrefferedFamilyName { lmbGetWstrLocale(pStrPrefferedFamilyName) },
-					.wstrFaceName { lmbGetWstrLocale(pStrFaceName) },
-					.vecDesignScriptLangTag { lmbGetWstrAll(pStrDesignScriptLangTag) },
-					.vecSuppScriptLangTag { lmbGetWstrAll(pStrSuppScriptLangTag) },
-					.vecSemanticTag { lmbGetWstrAll(pStrSemanticTag) } });
+					.wstrTypographicFaceName { lmbGetWstrLocale(pStrTypographicFaceName) } });
 			}
 
 			vecFontInfo.emplace_back(DWFONTFAMILYINFO { .wstrFamilyName { buffFamilyName }, .wstrLocale { pwszLocale },

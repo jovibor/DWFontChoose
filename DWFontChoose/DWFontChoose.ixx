@@ -488,9 +488,14 @@ namespace DWFONTCHOOSE {
 			}
 			[[nodiscard]] auto GetScrollPos(bool fVert)const -> int { return GetScrollInfo(fVert, SIF_POS).nPos; }
 			[[nodiscard]] auto GetWindowDC()const -> HDC { assert(IsWindow()); return ::GetWindowDC(m_hWnd); }
+			[[nodiscard]] auto GetWindowLongPTR(int iIndex)const {
+				assert(IsWindow()); return ::GetWindowLongPtrW(m_hWnd, iIndex);
+			}
 			[[nodiscard]] auto GetWindowRect()const -> CRect {
 				assert(IsWindow()); RECT rc; ::GetWindowRect(m_hWnd, &rc); return rc;
 			}
+			[[nodiscard]] auto GetWindowStyles()const { return static_cast<DWORD>(GetWindowLongPTR(GWL_STYLE)); }
+			[[nodiscard]] auto GetWindowStylesEx()const { return static_cast<DWORD>(GetWindowLongPTR(GWL_EXSTYLE)); }
 			[[nodiscard]] auto GetWndText()const -> std::wstring {
 				assert(IsWindow()); wchar_t buff[256]; ::GetWindowTextW(m_hWnd, buff, std::size(buff)); return buff;
 			}
@@ -772,7 +777,7 @@ namespace DWFONTCHOOSE {
 		[[nodiscard]] auto GetLineSpacing()const -> float;
 		[[nodiscard]] auto GetScrollPosPx()const -> int;
 		void ItemHighlight(UINT32 u32Item);
-		void ItemSelectIncDec(UINT32 u32Lines, bool fInc);
+		void ItemSelectIncDec(UINT32 u32Items, bool fInc);
 		void ItemSelect(UINT32 u32Item);
 		[[nodiscard]] bool IsDataSet()const;
 		auto OnEraseBkgnd(const MSG& msg) -> LRESULT;
@@ -908,7 +913,7 @@ namespace DWFONTCHOOSE {
 			break;
 		case EFontInfo::FONT_FACE:
 			for (const auto& vec : vecFontInfo[u32ItemID].vecFontFaceInfo) {
-				wstrData += vec.wstrFaceName + L"\r";
+				wstrData += vec.wstrWeightStretchStyleFaceName + L"\r";
 			}
 			break;
 		default:
@@ -1554,7 +1559,7 @@ namespace DWFONTCHOOSE {
 		return 0;
 	}
 
-	int CDWFontChooseSampleText::PixelsFromDIP(float flDIP)const {
+	auto CDWFontChooseSampleText::PixelsFromDIP(float flDIP)const ->int {
 		return std::lround(flDIP * GetDPIScale());
 	}
 
@@ -1600,6 +1605,7 @@ namespace DWFONTCHOOSE {
 		auto OnCommand(const MSG& msg) -> INT_PTR;
 		void OnCommandCombo(DWORD dwCtrlID, DWORD dwCode);
 		void OnCommandEdit(DWORD dwCtrlID, DWORD dwCode);
+		auto OnCtlClrStatic(const MSG& msg) -> INT_PTR;
 		auto OnDestroy() -> INT_PTR;
 		auto OnInitDialog(const MSG& msg) -> INT_PTR;
 		auto OnLButtonDown(const MSG& msg) -> INT_PTR;
@@ -1612,10 +1618,21 @@ namespace DWFONTCHOOSE {
 		void SetComboStretchSel(DWORD_PTR dwStretch);
 		void SetComboStyleSel(DWORD_PTR dwStyle);
 		void SetEditFontSize(float flSize);
+		void ShowProperties(bool fShow);
 		void UpdateSampleText();
 	private:
 		static inline auto m_hCurResize { static_cast<HCURSOR>(::LoadImageW(nullptr, IDC_SIZEWE, IMAGE_CURSOR, 0, 0, LR_SHARED)) };
 		static inline auto m_hCurArrow { static_cast<HCURSOR>(::LoadImageW(nullptr, IDC_ARROW, IMAGE_CURSOR, 0, 0, LR_SHARED)) };
+		static constexpr int m_arrIDsFaceProps[] = { IDC_STATIC_GRP_FACE_PROPS,
+			IDC_STATIC_FAM_NAME, IDC_STATIC_FAM_NAME_DATA, IDC_STATIC_TYPO_FAM_NAME,
+			IDC_STATIC_TYPO_FAM_NAME_DATA, IDC_STATIC_W_S_S_FACE_NAME, IDC_STATIC_W_S_S_FACE_NAME_DATA,
+			IDC_STATIC_FULL_NAME, IDC_STATIC_FULL_NAME_DATA, IDC_STATIC_WIN32_FAM_NAME,
+			IDC_STATIC_WIN32_FAM_NAME_DATA, IDC_STATIC_PS_NAME, IDC_STATIC_PS_NAME_DATA,
+			IDC_STATIC_D_S_L_TAG, IDC_STATIC_D_S_L_TAG_DATA, IDC_STATIC_S_S_L_TAG,
+			IDC_STATIC_S_S_L_TAG_DATA, IDC_STATIC_SEM_TAG, IDC_STATIC_SEM_TAG_DATA,
+			IDC_STATIC_WEIGHTPROP, IDC_STATIC_WEIGHTPROP_DATA, IDC_STATIC_STRETCHPROP,
+			IDC_STATIC_STRETCHPROP_DATA, IDC_STATIC_STYLEPROP, IDC_STATIC_STYLEPROP_DATA,
+			IDC_STATIC_TYPO_FACE_NAME, IDC_STATIC_TYPO_FACE_NAME_DATA };
 		DWFONTCHOOSEINFO m_fci;
 		GDIUT::CWnd m_Wnd;
 		GDIUT::CDynLayout m_DynLayout;
@@ -1632,6 +1649,7 @@ namespace DWFONTCHOOSE {
 		UINT32 m_u32FaceItemID { };   //Currently choosen font face in the m_vecFonts[m_u32FamilyItemID].
 		GDIUT::CPoint m_ptSizeClicked;
 		bool m_fLMDownSize { };
+		bool m_fPropertiesShown { };
 	};
 
 	auto CDWFontChooseDlg::DoModal(const DWFONTCHOOSEINFO& fci)->INT_PTR
@@ -1649,6 +1667,7 @@ namespace DWFONTCHOOSE {
 	{
 		switch (msg.message) {
 		case WM_COMMAND: return OnCommand(msg);
+		case WM_CTLCOLORSTATIC: return OnCtlClrStatic(msg);
 		case WM_DESTROY: return OnDestroy();
 		case WM_INITDIALOG: return OnInitDialog(msg);
 		case WM_LBUTTONDOWN: return OnLButtonDown(msg);
@@ -1679,6 +1698,51 @@ namespace DWFONTCHOOSE {
 		SetComboWeightSel(std::stoul(Face.wstrWeight));
 		SetComboStretchSel(std::stoul(Face.wstrStretch));
 		SetComboStyleSel(std::stoul(Face.wstrStyle));
+
+		m_Wnd.GetDlgItem(IDC_STATIC_FAM_NAME_DATA).SetWndText(Family.wstrFamilyName);
+		m_Wnd.GetDlgItem(IDC_STATIC_TYPO_FAM_NAME_DATA).SetWndText(Face.wstrTypographicFamilyName);
+		m_Wnd.GetDlgItem(IDC_STATIC_W_S_S_FACE_NAME_DATA).SetWndText(Face.wstrWeightStretchStyleFaceName);
+		m_Wnd.GetDlgItem(IDC_STATIC_FULL_NAME_DATA).SetWndText(Face.wstrFullName);
+		m_Wnd.GetDlgItem(IDC_STATIC_WIN32_FAM_NAME_DATA).SetWndText(Face.wstrWin32FamilyName);
+		m_Wnd.GetDlgItem(IDC_STATIC_PS_NAME_DATA).SetWndText(Face.wstrPostScriptName);
+
+		std::wstring wstrDSLTag = L"[";
+		auto iIndex = 0;
+		for (const auto& wstr : Face.vecDesignScriptLangTag) {
+			wstrDSLTag += wstr;
+			if (iIndex++ < Face.vecDesignScriptLangTag.size() - 1) {
+				wstrDSLTag += L", ";
+			}
+		}
+		wstrDSLTag += L"]";
+		m_Wnd.GetDlgItem(IDC_STATIC_D_S_L_TAG_DATA).SetWndText(wstrDSLTag);
+
+		std::wstring wstrSSLTag = L"[";
+		iIndex = 0;
+		for (const auto& wstr : Face.vecSuppScriptLangTag) {
+			wstrSSLTag += wstr;
+			if (iIndex++ < Face.vecSuppScriptLangTag.size() - 1) {
+				wstrSSLTag += L", ";
+			}
+		}
+		wstrSSLTag += L"]";
+		m_Wnd.GetDlgItem(IDC_STATIC_S_S_L_TAG_DATA).SetWndText(wstrSSLTag);
+
+		std::wstring wstrSemTag = L"[";
+		iIndex = 0;
+		for (const auto& wstr : Face.vecSemanticTag) {
+			wstrSemTag += wstr;
+			if (iIndex++ < Face.vecSemanticTag.size() - 1) {
+				wstrSemTag += L", ";
+			}
+		}
+		wstrSemTag += L"]";
+		m_Wnd.GetDlgItem(IDC_STATIC_SEM_TAG_DATA).SetWndText(wstrSemTag);
+		m_Wnd.GetDlgItem(IDC_STATIC_WEIGHTPROP_DATA).SetWndText(Face.wstrWeight);
+		m_Wnd.GetDlgItem(IDC_STATIC_STRETCHPROP_DATA).SetWndText(Face.wstrStretch);
+		m_Wnd.GetDlgItem(IDC_STATIC_STYLEPROP_DATA).SetWndText(Face.wstrStyle);
+		m_Wnd.GetDlgItem(IDC_STATIC_TYPO_FACE_NAME_DATA).SetWndText(Face.wstrTypographicFaceName);
+
 		UpdateSampleText();
 	}
 
@@ -1710,6 +1774,9 @@ namespace DWFONTCHOOSE {
 		case IDCANCEL:
 			m_Wnd.EndDialog(IDCANCEL);
 			break;
+		case IDC_BTN_PROPERTIES:
+			ShowProperties(!m_fPropertiesShown);
+			break;
 		case IDC_COMBO_FONT_WEIGHT:
 		case IDC_COMBO_FONT_STRETCH:
 		case IDC_COMBO_FONT_STYLE:
@@ -1737,6 +1804,26 @@ namespace DWFONTCHOOSE {
 		if (dwCode == EN_CHANGE) {
 			UpdateSampleText();
 		}
+	}
+
+	auto CDWFontChooseDlg::OnCtlClrStatic(const MSG& msg) -> INT_PTR
+	{
+		static constexpr int arrIDsData[] = { IDC_STATIC_FAM_NAME_DATA, IDC_STATIC_TYPO_FAM_NAME_DATA,
+			IDC_STATIC_W_S_S_FACE_NAME_DATA, IDC_STATIC_FULL_NAME_DATA, IDC_STATIC_WIN32_FAM_NAME_DATA,
+			IDC_STATIC_PS_NAME_DATA, IDC_STATIC_D_S_L_TAG_DATA, IDC_STATIC_S_S_L_TAG_DATA, IDC_STATIC_SEM_TAG_DATA,
+			IDC_STATIC_WEIGHTPROP_DATA, IDC_STATIC_STRETCHPROP_DATA, IDC_STATIC_STYLEPROP_DATA,
+			IDC_STATIC_TYPO_FACE_NAME_DATA };
+
+		if (const auto hWndFrom = reinterpret_cast<HWND>(msg.lParam);
+			std::any_of(std::begin(arrIDsData), std::end(arrIDsData), [=](int id) {
+				return m_Wnd.GetDlgItem(id) == hWndFrom; })) {
+			const auto hDC = reinterpret_cast<HDC>(msg.wParam);
+			::SetTextColor(hDC, RGB(0, 50, 250));
+			::SetBkColor(hDC, ::GetSysColor(COLOR_3DFACE));
+			return reinterpret_cast<INT_PTR>(::GetSysColorBrush(COLOR_3DFACE));
+		}
+
+		return FALSE;
 	}
 
 	auto CDWFontChooseDlg::OnDestroy()->INT_PTR
@@ -1815,17 +1902,23 @@ namespace DWFONTCHOOSE {
 		m_DynLayout.AddItem(IDC_CUSTOM_FONT_FAMILY, GDIUT::CDynLayout::MoveNone(), GDIUT::CDynLayout::SizeHorzAndVert(50, 50));
 		m_DynLayout.AddItem(IDC_CUSTOM_FONT_FACE, GDIUT::CDynLayout::MoveHorz(50), GDIUT::CDynLayout::SizeHorzAndVert(50, 50));
 		m_DynLayout.AddItem(IDC_CUSTOM_FONT_SAMPLE, GDIUT::CDynLayout::MoveVert(50), GDIUT::CDynLayout::SizeHorzAndVert(100, 50));
-		m_DynLayout.AddItem(IDC_EDIT_FONT_SIZE, GDIUT::CDynLayout::MoveVert(100), GDIUT::CDynLayout::SizeNone());
-		m_DynLayout.AddItem(IDC_STATIC_SIZE, GDIUT::CDynLayout::MoveVert(100), GDIUT::CDynLayout::SizeNone());
-		m_DynLayout.AddItem(IDC_COMBO_FONT_WEIGHT, GDIUT::CDynLayout::MoveVert(100), GDIUT::CDynLayout::SizeNone());
-		m_DynLayout.AddItem(IDC_STATIC_WEIGHT, GDIUT::CDynLayout::MoveVert(100), GDIUT::CDynLayout::SizeNone());
-		m_DynLayout.AddItem(IDC_COMBO_FONT_STRETCH, GDIUT::CDynLayout::MoveVert(100), GDIUT::CDynLayout::SizeNone());
-		m_DynLayout.AddItem(IDC_STATIC_STRETCH, GDIUT::CDynLayout::MoveVert(100), GDIUT::CDynLayout::SizeNone());
-		m_DynLayout.AddItem(IDC_COMBO_FONT_STYLE, GDIUT::CDynLayout::MoveVert(100), GDIUT::CDynLayout::SizeNone());
-		m_DynLayout.AddItem(IDC_STATIC_STYLE, GDIUT::CDynLayout::MoveVert(100), GDIUT::CDynLayout::SizeNone());
-		m_DynLayout.AddItem(IDC_BTN_OK, GDIUT::CDynLayout::MoveHorzAndVert(100, 100), GDIUT::CDynLayout::SizeNone());
-		m_DynLayout.AddItem(IDCANCEL, GDIUT::CDynLayout::MoveHorzAndVert(100, 100), GDIUT::CDynLayout::SizeNone());
+		m_DynLayout.AddItem(IDC_EDIT_FONT_SIZE, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
+		m_DynLayout.AddItem(IDC_STATIC_SIZE, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
+		m_DynLayout.AddItem(IDC_COMBO_FONT_WEIGHT, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
+		m_DynLayout.AddItem(IDC_STATIC_WEIGHT, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
+		m_DynLayout.AddItem(IDC_COMBO_FONT_STRETCH, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
+		m_DynLayout.AddItem(IDC_STATIC_STRETCH, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
+		m_DynLayout.AddItem(IDC_COMBO_FONT_STYLE, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
+		m_DynLayout.AddItem(IDC_STATIC_STYLE, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
+		m_DynLayout.AddItem(IDC_BTN_OK, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
+		m_DynLayout.AddItem(IDCANCEL, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
+		m_DynLayout.AddItem(IDC_BTN_PROPERTIES, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
+
+		for (const auto i : m_arrIDsFaceProps) {
+			m_DynLayout.AddItem(i, GDIUT::CDynLayout::MoveHorz(100), GDIUT::CDynLayout::SizeNone());
+		}
 		m_DynLayout.Enable(true);
+		ShowProperties(false);
 
 		return TRUE;
 	}
@@ -1947,6 +2040,39 @@ namespace DWFONTCHOOSE {
 
 	void CDWFontChooseDlg::SetEditFontSize(float flSize) {
 		m_EditSize.SetWndText(std::format(L"{}pt", std::clamp(flSize, 1.F, 1296.F)));
+	}
+
+	void CDWFontChooseDlg::ShowProperties(bool fShow)
+	{
+		m_DynLayout.Enable(false);
+		auto hdwp = ::BeginDeferWindowPos(static_cast<int>(std::size(m_arrIDsFaceProps)));
+		for (const auto id : m_arrIDsFaceProps) {
+			const auto hWnd = m_Wnd.GetDlgItem(id);
+			hdwp = ::DeferWindowPos(hdwp, hWnd, nullptr, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE
+				| (fShow ? SWP_SHOWWINDOW : SWP_HIDEWINDOW));
+		}
+		::EndDeferWindowPos(hdwp);
+		const auto rcWnd = m_Wnd.GetWindowRect();
+		auto rcSampleText = m_Wnd.GetDlgItem(IDC_CUSTOM_FONT_SAMPLE).GetWindowRect();
+		const auto iHeight = rcWnd.Height();
+		int iWidth;
+
+		if (fShow) {
+			const auto rcGrpProps = m_Wnd.GetDlgItem(IDC_STATIC_GRP_FACE_PROPS).GetWindowRect();
+			const auto iIndent = rcGrpProps.left - rcSampleText.right;
+			const auto iRight = rcSampleText.Width() + rcGrpProps.Width() + (iIndent * 2);
+			GDIUT::CRect rcWndNew(0, 0, iRight, 0);
+			::AdjustWindowRect(rcWndNew, m_Wnd.GetWindowStyles(), FALSE);
+			iWidth = rcWndNew.Width();
+		}
+		else {
+			::AdjustWindowRect(rcSampleText, m_Wnd.GetWindowStyles(), FALSE);
+			iWidth = rcSampleText.Width();
+		}
+		m_Wnd.SetWindowPos(nullptr, 0, 0, iWidth, iHeight, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+		m_Wnd.GetDlgItem(IDC_BTN_PROPERTIES).SetWndText(fShow ? L"Properties <<" : L"Properties >>");
+		m_fPropertiesShown = fShow;
+		m_DynLayout.Enable(true);
 	}
 
 	void CDWFontChooseDlg::UpdateSampleText()
