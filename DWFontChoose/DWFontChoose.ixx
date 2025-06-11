@@ -10,6 +10,7 @@ module;
 #include <dwrite_3.h>
 #include <algorithm>
 #include <cassert>
+#include <cwctype>
 #include <format>
 #include <optional>
 #include <source_location>
@@ -460,8 +461,7 @@ namespace DWFONTCHOOSE {
 			}
 			bool EnableWindow(bool fEnable)const { assert(IsWindow()); return ::EnableWindow(m_hWnd, fEnable); }
 			void EndDialog(INT_PTR iResult)const { assert(IsWindow()); ::EndDialog(m_hWnd, iResult); }
-			[[nodiscard]] int GetCheckedRadioButton(int iIDFirst, int iIDLast)const
-			{
+			[[nodiscard]] int GetCheckedRadioButton(int iIDFirst, int iIDLast)const {
 				assert(IsWindow()); for (int iID = iIDFirst; iID <= iIDLast; ++iID) {
 					if (::IsDlgButtonChecked(m_hWnd, iID) != 0) { return iID; }
 				} return 0;
@@ -469,13 +469,11 @@ namespace DWFONTCHOOSE {
 			[[nodiscard]] auto GetDC()const -> HDC { assert(IsWindow()); return ::GetDC(m_hWnd); }
 			[[nodiscard]] int GetDlgCtrlID()const { assert(IsWindow()); return ::GetDlgCtrlID(m_hWnd); }
 			[[nodiscard]] auto GetDlgItem(int iIDCtrl)const -> CWnd { assert(IsWindow()); return ::GetDlgItem(m_hWnd, iIDCtrl); }
-			[[nodiscard]] auto GetHFont()const -> HFONT
-			{
+			[[nodiscard]] auto GetHFont()const -> HFONT {
 				assert(IsWindow()); return reinterpret_cast<HFONT>(::SendMessageW(m_hWnd, WM_GETFONT, 0, 0));
 			}
 			[[nodiscard]] auto GetHWND()const -> HWND { return m_hWnd; }
-			[[nodiscard]] auto GetLogFont()const -> std::optional<LOGFONTW>
-			{
+			[[nodiscard]] auto GetLogFont()const -> std::optional<LOGFONTW> {
 				if (const auto hFont = GetHFont(); hFont != nullptr) {
 					LOGFONTW lf { }; ::GetObjectW(hFont, sizeof(lf), &lf); return lf;
 				}
@@ -510,18 +508,13 @@ namespace DWFONTCHOOSE {
 			void KillTimer(UINT_PTR uID)const {
 				assert(IsWindow()); ::KillTimer(m_hWnd, uID);
 			}
-			int MapWindowPoints(HWND hWndTo, LPRECT pRC)const
-			{
+			int MapWindowPoints(HWND hWndTo, LPRECT pRC)const {
 				assert(IsWindow()); return ::MapWindowPoints(m_hWnd, hWndTo, reinterpret_cast<LPPOINT>(pRC), 2);
 			}
 			bool RedrawWindow(LPCRECT pRC = nullptr, HRGN hrgn = nullptr, UINT uFlags = RDW_INVALIDATE | RDW_UPDATENOW | RDW_ERASE)const {
 				assert(IsWindow()); return static_cast<bool>(::RedrawWindow(m_hWnd, pRC, hrgn, uFlags));
 			}
 			int ReleaseDC(HDC hDC)const { assert(IsWindow()); return ::ReleaseDC(m_hWnd, hDC); }
-			auto SetTimer(UINT_PTR uID, UINT uElapse, TIMERPROC pFN = nullptr)const -> UINT_PTR
-			{
-				assert(IsWindow()); return ::SetTimer(m_hWnd, uID, uElapse, pFN);
-			}
 			void ScreenToClient(LPPOINT pPT)const { assert(IsWindow()); ::ScreenToClient(m_hWnd, pPT); }
 			void ScreenToClient(POINT& pt)const { ScreenToClient(&pt); }
 			void ScreenToClient(LPRECT pRC)const {
@@ -532,6 +525,9 @@ namespace DWFONTCHOOSE {
 			}
 			void SetActiveWindow()const { assert(IsWindow()); ::SetActiveWindow(m_hWnd); }
 			auto SetCapture()const -> CWnd { assert(IsWindow()); return ::SetCapture(m_hWnd); }
+			auto SetClassLongPTR(int iIndex, LONG_PTR dwNewLong)const -> ULONG_PTR {
+				assert(IsWindow()); return ::SetClassLongPtrW(m_hWnd, iIndex, dwNewLong);
+			}
 			void SetFocus()const { assert(IsWindow()); ::SetFocus(m_hWnd); }
 			void SetForegroundWindow()const { assert(IsWindow()); ::SetForegroundWindow(m_hWnd); }
 			void SetScrollInfo(bool fVert, const SCROLLINFO& si)const {
@@ -540,6 +536,9 @@ namespace DWFONTCHOOSE {
 			void SetScrollPos(bool fVert, int iPos)const {
 				const SCROLLINFO si { .cbSize { sizeof(SCROLLINFO) }, .fMask { SIF_POS }, .nPos { iPos } };
 				SetScrollInfo(fVert, si);
+			}
+			auto SetTimer(UINT_PTR uID, UINT uElapse, TIMERPROC pFN = nullptr)const -> UINT_PTR {
+				assert(IsWindow()); return ::SetTimer(m_hWnd, uID, uElapse, pFN);
 			}
 			void SetWindowPos(HWND hWndAfter, int iX, int iY, int iWidth, int iHeight, UINT uFlags)const {
 				assert(IsWindow()); ::SetWindowPos(m_hWnd, hWndAfter, iX, iY, iWidth, iHeight, uFlags);
@@ -1078,15 +1077,14 @@ namespace DWFONTCHOOSE {
 			return;
 		}
 
-		UINT32 u32FamilyItemID { };
-		UINT32 u32FaceItemID { };
+		UINT32 u32FamilyItemID { 0 };
+		UINT32 u32FaceItemID { 0 };
 		switch (m_eFontInfo) {
 		case EFontInfo::FONT_FAMILY:
 			if (u32Item >= m_pVecFontInfo->size()) {
 				u32Item = static_cast<UINT32>(m_pVecFontInfo->size() - 1);
 			}
 			u32FamilyItemID = u32Item;
-			u32FaceItemID = 0;
 			break;
 		case EFontInfo::FONT_FACE:
 			if (u32Item >= (*m_pVecFontInfo)[m_u32FamilyItemID].vecFontFaceInfo.size()) {
@@ -1343,12 +1341,26 @@ namespace DWFONTCHOOSE {
 		[[nodiscard]] auto ProcessMsg(const MSG& msg) -> LRESULT;
 		void SetFontInfo(const DXUT::DWFONTINFO& fi);
 	private:
+		void CreateTextLayout();
 		template <typename T> requires std::is_arithmetic_v<T>
 		[[nodiscard]] auto DIPFromPixels(T t)const -> float;
+		[[nodiscard]] auto GetDataSize()const -> UINT32;
 		[[nodiscard]] auto GetDPIScale()const -> float;
+		void OnKeyLeft();
+		void OnKeyRight();
+		void OnKeyUp();
+		void OnKeyDown();
+		void OnKeyDelete();
+		void OnKeyBackspace();
+		void OnKeyHome();
+		void OnKeyEnd();
+		auto OnChar(const MSG& msg) -> LRESULT;
 		auto OnEraseBkgnd(const MSG& msg) -> LRESULT;
 		auto OnGetDlgCode(const MSG& msg) -> LRESULT;
+		auto OnKeyDown(const MSG& msg) -> INT_PTR;
 		auto OnLButtonDown(const MSG& msg) -> INT_PTR;
+		auto OnLButtonUp(const MSG& msg) -> INT_PTR;
+		auto OnMouseMove(const MSG& msg) -> INT_PTR;
 		auto OnMouseWheel(const MSG& msg) -> INT_PTR;
 		auto OnPaint() -> LRESULT;
 		auto OnSize(const MSG& msg) -> LRESULT;
@@ -1366,10 +1378,19 @@ namespace DWFONTCHOOSE {
 		DXUT::comptr<IDXGISwapChain1> m_pDXGISwapChain;
 		DXUT::comptr<ID2D1Bitmap1> m_pD2DTargetBitmap;
 		DXUT::comptr<ID2D1SolidColorBrush> m_pD2DBrushBlack;
+		DXUT::comptr<ID2D1SolidColorBrush> m_pD2DBrushBlue;
+		DXUT::comptr<ID2D1SolidColorBrush> m_pD2DBrushWhite;
+		DXUT::comptr<IDWriteTextFormat1> m_pTextFormat;
 		DXUT::comptr<IDWriteTextLayout1> m_pLayoutData;
 		DXUT::CTextEffect m_effSelect;
 		DXUT::CDWriteTextRenderer m_D2DTextRenderer;
+		DXUT::CTextEffect m_effSelection;
+		std::wstring m_wstrData { L"The quick brown fox jumps over the lazy dog." };
+		UINT32 m_u32CaretPos { 0xFFFFFFFF };
+		UINT32 m_u32StartSel { };
+		UINT32 m_u32SizeSel { };
 		float m_flDPIScale { 1.F }; //DPI scale factor for the window.
+		bool m_fLMDown { };
 	};
 
 	CDWFontChooseSampleText::CDWFontChooseSampleText() {
@@ -1405,6 +1426,8 @@ namespace DWFONTCHOOSE {
 		}
 
 		m_Wnd.Attach(hWnd);
+		m_Wnd.SetClassLongPTR(GCLP_HCURSOR,
+			reinterpret_cast<LONG_PTR>(::LoadImageW(nullptr, IDC_IBEAM, IMAGE_CURSOR, 0, 0, LR_SHARED)));
 		const auto flDPI = static_cast<float>(::GetDpiForWindow(m_Wnd));
 		m_flDPIScale = flDPI / USER_DEFAULT_SCREEN_DPI;
 
@@ -1418,14 +1441,22 @@ namespace DWFONTCHOOSE {
 		m_pD2DDeviceContext->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
 		m_pD2DDeviceContext->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
 		m_pD2DDeviceContext->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Black), m_pD2DBrushBlack);
+		m_pD2DDeviceContext->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::Blue), m_pD2DBrushBlue);
+		m_pD2DDeviceContext->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White), m_pD2DBrushWhite);
+		m_effSelection.SetBkBrush(m_pD2DBrushBlue);
+		m_effSelection.SetTextBrush(m_pD2DBrushWhite);
 	}
 
 	auto CDWFontChooseSampleText::ProcessMsg(const MSG& msg)->LRESULT
 	{
 		switch (msg.message) {
+		case WM_CHAR: return OnChar(msg);
 		case WM_ERASEBKGND: return OnEraseBkgnd(msg);
 		case WM_GETDLGCODE: return OnGetDlgCode(msg);
+		case WM_KEYDOWN: return OnKeyDown(msg);
 		case WM_LBUTTONDOWN: return OnLButtonDown(msg);
+		case WM_LBUTTONUP: return OnLButtonUp(msg);
+		case WM_MOUSEMOVE: return OnMouseMove(msg);
 		case WM_MOUSEWHEEL: return OnMouseWheel(msg);
 		case WM_PAINT: return OnPaint();
 		case WM_SIZE: return OnSize(msg);
@@ -1436,12 +1467,17 @@ namespace DWFONTCHOOSE {
 
 	void CDWFontChooseSampleText::SetFontInfo(const DXUT::DWFONTINFO& fi)
 	{
-		const auto pTextFormat = DWCreateTextFormat(fi);
+		m_pTextFormat = DWCreateTextFormat(fi);
+		CreateTextLayout();
 		m_D2DTextRenderer.SetDrawContext({ .pDeviceContext { m_pD2DDeviceContext }, .pTextLayout { m_pLayoutData },
 			.pBrushTextDef { m_pD2DBrushBlack } });
+	}
+
+	void CDWFontChooseSampleText::CreateTextLayout()
+	{
 		const auto rcClient = m_Wnd.GetClientRect();
-		m_pLayoutData = DXUT::DWCreateTextLayout(L"The quick brown fox jumps over the lazy dog.", pTextFormat,
-			DIPFromPixels(rcClient.Width()), DIPFromPixels(rcClient.Height()));
+		m_pLayoutData = DXUT::DWCreateTextLayout(m_wstrData, m_pTextFormat, DIPFromPixels(rcClient.Width()),
+			DIPFromPixels(rcClient.Height()));
 		m_pLayoutData->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
 		m_pLayoutData->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
 		RecalcScroll();
@@ -1454,8 +1490,25 @@ namespace DWFONTCHOOSE {
 		return t / GetDPIScale();
 	}
 
+	auto CDWFontChooseSampleText::GetDataSize()const->UINT32 {
+		return static_cast<UINT32>(m_wstrData.size());
+	}
+
 	auto CDWFontChooseSampleText::GetDPIScale()const->float {
 		return m_flDPIScale;
+	}
+
+	auto CDWFontChooseSampleText::OnChar(const MSG& msg)->LRESULT
+	{
+		const auto wChar = LOWORD(msg.wParam); //LOWORD holds wchar_t symbol.
+		if ((::GetAsyncKeyState(VK_CONTROL) < 0) || !std::iswprint(wChar)) {
+			return 0;
+		}
+
+		m_wstrData.insert(m_u32CaretPos++, 1, wChar);
+		CreateTextLayout();
+
+		return 0;
 	}
 
 	auto CDWFontChooseSampleText::OnEraseBkgnd([[maybe_unused]] const MSG& msg)->LRESULT {
@@ -1466,9 +1519,195 @@ namespace DWFONTCHOOSE {
 		return DLGC_WANTALLKEYS;
 	}
 
+	auto CDWFontChooseSampleText::OnKeyDown(const MSG& msg)->LRESULT
+	{
+		const auto wVKey = LOWORD(msg.wParam); //Virtual-key code (both: WM_KEYDOWN/WM_SYSKEYDOWN).
+		switch (wVKey) {
+		case 'A':
+			if (::GetAsyncKeyState(VK_CONTROL) < 0) {
+				m_u32StartSel = 0;
+				m_u32SizeSel = GetDataSize();
+				m_Wnd.RedrawWindow();
+			}
+			break;
+		case VK_BACK:
+			OnKeyBackspace();
+			break;
+		case VK_DELETE:
+			OnKeyDelete();
+			break;
+		case VK_RETURN:
+			break;
+		case VK_LEFT:
+			OnKeyLeft();
+			break;
+		case VK_RIGHT:
+			OnKeyRight();
+			break;
+		case VK_UP:
+			OnKeyUp();
+			break;
+		case VK_DOWN:
+			OnKeyDown();
+			break;
+		case VK_HOME:
+			OnKeyHome();
+			break;
+		case VK_END:
+			OnKeyEnd();
+			break;
+		default:
+			break;
+		}
+
+		return 0;
+	}
+
+	void CDWFontChooseSampleText::OnKeyLeft()
+	{
+		if (m_u32CaretPos == 0xFFFFFFFF || m_u32CaretPos == 0) {
+			return;
+		}
+
+		--m_u32CaretPos;
+		m_Wnd.RedrawWindow();
+	}
+
+	void CDWFontChooseSampleText::OnKeyRight()
+	{
+		if (m_u32CaretPos == 0xFFFFFFFF || m_u32CaretPos >= GetDataSize()) {
+			return;
+		}
+
+		++m_u32CaretPos;
+		m_Wnd.RedrawWindow();
+	}
+
+	void CDWFontChooseSampleText::OnKeyUp()
+	{
+	}
+
+	void CDWFontChooseSampleText::OnKeyDown()
+	{
+	}
+
+	void CDWFontChooseSampleText::OnKeyDelete()
+	{
+		if (GetDataSize() == 0) {
+			return;
+		}
+
+		if (m_u32SizeSel == 0) {
+			m_wstrData.erase(m_u32CaretPos, 1);
+		}
+		else {
+			m_wstrData.erase(m_u32StartSel, m_u32SizeSel);
+			m_u32CaretPos = m_u32StartSel;
+			m_u32StartSel = m_u32SizeSel = 0;
+		}
+
+		CreateTextLayout();
+		m_Wnd.RedrawWindow();
+	}
+
+	void CDWFontChooseSampleText::OnKeyBackspace()
+	{
+		if (GetDataSize() == 0) {
+			return;
+		}
+
+		if (m_u32SizeSel == 0) {
+			if (m_u32CaretPos == 0) { return; }
+
+			m_wstrData.erase(m_u32CaretPos - 1, 1);
+			--m_u32CaretPos;
+		}
+		else {
+			m_wstrData.erase(m_u32StartSel, m_u32SizeSel);
+			m_u32CaretPos = m_u32StartSel;
+			m_u32StartSel = m_u32SizeSel = 0;
+		}
+
+		CreateTextLayout();
+		m_Wnd.RedrawWindow();
+	}
+
+	void CDWFontChooseSampleText::OnKeyHome()
+	{
+		m_u32CaretPos = 0;
+		m_Wnd.RedrawWindow();
+	}
+
+	void CDWFontChooseSampleText::OnKeyEnd()
+	{
+		m_u32CaretPos = GetDataSize();
+		m_Wnd.RedrawWindow();
+	}
+
 	auto CDWFontChooseSampleText::OnLButtonDown([[maybe_unused]] const MSG& msg)->LRESULT
 	{
+		if (!m_pLayoutData) {
+			return 0;
+		}
+
+		const POINT pt { .x { ut::GetXLPARAM(msg.lParam) }, .y { ut::GetYLPARAM(msg.lParam) } };
+		BOOL fIsTrail;
+		BOOL fIsInside;
+		DWRITE_HIT_TEST_METRICS htm;
+		m_pLayoutData->HitTestPoint(DIPFromPixels(pt.x), DIPFromPixels(pt.y), &fIsTrail, &fIsInside, &htm);
+		if (fIsInside) {
+			m_u32CaretPos = htm.textPosition + ((DIPFromPixels(pt.x) > (htm.left + (htm.width / 2))) ? 1 : 0);
+		}
+		else {
+			m_u32CaretPos = htm.textPosition + (fIsTrail ? 1 : 0);
+		}
+
+		m_u32SizeSel = 0;
+		m_fLMDown = true;
 		m_Wnd.SetFocus();
+		m_Wnd.SetCapture();
+		m_Wnd.RedrawWindow();
+
+		return 0;
+	}
+
+	auto CDWFontChooseSampleText::OnLButtonUp([[maybe_unused]] const MSG& msg)->LRESULT
+	{
+		m_fLMDown = false;
+		::ReleaseCapture();
+
+		return TRUE;
+	}
+
+	auto CDWFontChooseSampleText::OnMouseMove(const MSG& msg)->LRESULT
+	{
+		if (!m_fLMDown || !m_pLayoutData) {
+			return 0;
+		}
+
+		const POINT pt { .x { ut::GetXLPARAM(msg.lParam) }, .y { ut::GetYLPARAM(msg.lParam) } };
+		BOOL fIsTrail;
+		BOOL fIsInside;
+		DWRITE_HIT_TEST_METRICS htm;
+		m_pLayoutData->HitTestPoint(DIPFromPixels(pt.x), DIPFromPixels(pt.y), &fIsTrail, &fIsInside, &htm);
+		if (fIsInside) {
+			if (htm.textPosition == m_u32CaretPos) {
+				m_u32StartSel = m_u32CaretPos;
+				m_u32SizeSel = (DIPFromPixels(pt.x) > (htm.left + (htm.width / 2))) ? 1 : 0;
+			}
+			else if (htm.textPosition > m_u32CaretPos) {
+				m_u32StartSel = m_u32CaretPos;
+				m_u32SizeSel = (htm.textPosition - m_u32CaretPos)
+					+ (DIPFromPixels(pt.x) > (htm.left + (htm.width / 2)) ? 1 : 0);
+			}
+			else { //htm.textPosition < m_u32CaretPos.
+				m_u32StartSel = htm.textPosition + ((DIPFromPixels(pt.x) < (htm.left + (htm.width / 2))) ? 0 : 1);
+				m_u32SizeSel = m_u32CaretPos - m_u32StartSel;
+			}
+
+			m_Wnd.RedrawWindow();
+		}
+
 		return 0;
 	}
 
@@ -1485,12 +1724,29 @@ namespace DWFONTCHOOSE {
 	auto CDWFontChooseSampleText::OnPaint()->LRESULT
 	{
 		::ValidateRect(m_Wnd, nullptr);
-
 		m_pD2DDeviceContext->BeginDraw();
 		m_pD2DDeviceContext->Clear(D2D1::ColorF(D2D1::ColorF::White));
+		if (!m_pLayoutData) {
+			m_pD2DDeviceContext->EndDraw();
+			m_pDXGISwapChain->Present(0, 0);
+			return 0;
+		}
 
-		if (m_pLayoutData) {
-			m_pLayoutData->Draw(nullptr, &m_D2DTextRenderer, 0, -DIPFromPixels(m_Wnd.GetScrollPos(true)));
+		m_pLayoutData->SetDrawingEffect(nullptr, { .startPosition { 0 }, .length { GetDataSize() } });
+		if (m_u32SizeSel > 0) {
+			m_pLayoutData->SetDrawingEffect(&m_effSelection, { .startPosition { m_u32StartSel },
+				.length { m_u32SizeSel } });
+		}
+
+		m_pLayoutData->Draw(nullptr, &m_D2DTextRenderer, 0, -DIPFromPixels(m_Wnd.GetScrollPos(true)));
+
+		if (m_u32CaretPos != 0xFFFFFFFF) {
+			float flX;
+			float flY;
+			DWRITE_HIT_TEST_METRICS htm;
+			m_pLayoutData->HitTestTextPosition(m_u32CaretPos, FALSE, &flX, &flY, &htm);
+			m_pD2DDeviceContext->DrawLine(
+				D2D1::Point2F(htm.left, htm.top), D2D1::Point2F(htm.left, htm.top + htm.height), m_pD2DBrushBlack);
 		}
 
 		m_pD2DDeviceContext->EndDraw();
