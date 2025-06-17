@@ -1150,6 +1150,7 @@ namespace DWFONTCHOOSE {
 	{
 		const POINT pt { .x { ut::GetXLPARAM(msg.lParam) }, .y { ut::GetYLPARAM(msg.lParam) } };
 		m_Wnd.SetFocus();
+		m_u32ItemHighlighted = static_cast<UINT32>((pt.y + GetScrollPosPx()) / GetLineHeightPx());
 		ItemSelect(m_u32ItemHighlighted);
 
 		return 0;
@@ -1659,7 +1660,7 @@ namespace DWFONTCHOOSE {
 			m_u32CaretPos = htm.textPosition + ((DIPFromPixels(pt.x) > (htm.left + (htm.width / 2))) ? 1 : 0);
 		}
 		else {
-			m_u32CaretPos = htm.textPosition + (fIsTrail ? 1 : 0);
+			m_u32CaretPos = htm.textPosition + (htm.textPosition == (m_wstrData.size() - 1) ? 1 : 0);
 		}
 
 		m_u32SizeSel = 0;
