@@ -165,9 +165,14 @@
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\DWFontChoose\DWFontChoose.rc" />
+    <ResourceCompile Include="res\main.rc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\DWFontChoose\DWFontChooseRes.h" />
+    <ClInclude Include="res\Resources.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="res\logo.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

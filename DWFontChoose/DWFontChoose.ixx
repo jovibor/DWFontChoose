@@ -776,8 +776,8 @@ namespace DWFONTCHOOSE {
 		[[nodiscard]] auto GetLineSpacing()const -> float;
 		[[nodiscard]] auto GetScrollPosPx()const -> int;
 		void ItemHighlight(UINT32 u32Item);
+		void ItemSelect(UINT32 u32Item, bool fChangeHighlight);
 		void ItemSelectIncDec(UINT32 u32Items, bool fInc);
-		void ItemSelect(UINT32 u32Item);
 		[[nodiscard]] bool IsDataSet()const;
 		auto OnEraseBkgnd(const MSG& msg) -> LRESULT;
 		auto OnGetDlgCode(const MSG& msg) -> LRESULT;
@@ -796,8 +796,8 @@ namespace DWFONTCHOOSE {
 	private:
 		static constexpr auto m_pwszClassName { L"DWFontChooseFontEnum" };
 		static constexpr auto m_flSizeFontMainDIP { 12.F };
-		static constexpr auto m_flLineSpacing { m_flSizeFontMainDIP * 2.F };
-		static constexpr auto m_flBaseLine { m_flLineSpacing * 0.7F };
+		static constexpr auto m_flLineSpacingDIP { m_flSizeFontMainDIP * 2.F };
+		static constexpr auto m_flBaseLineDIP { m_flLineSpacingDIP * 0.7F };
 		GDIUT::CWnd m_Wnd;
 		GDIUT::CPoint m_ptMouseCurr; //Current mouse pos to avoid spurious WM_MOUSEMOVE msgs.
 		DXUT::comptr<ID2D1Device> m_pD2DDevice;
@@ -874,7 +874,7 @@ namespace DWFONTCHOOSE {
 		//Text.
 		m_pDWTextFormatMain = DWCreateTextFormat(m_tfi);
 		m_pDWTextFormatMain->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
-		m_pDWTextFormatMain->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, GetLineSpacing(), m_flBaseLine);
+		m_pDWTextFormatMain->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, GetLineSpacing(), m_flBaseLineDIP);
 	}
 
 	auto CDWFontChooseEnum::ProcessMsg(const MSG& msg)->LRESULT
@@ -927,7 +927,7 @@ namespace DWFONTCHOOSE {
 		m_fDataSet = true;
 		RecalcScroll();
 		m_Wnd.RedrawWindow();
-		ItemSelect(0); //Select the very first item.
+		ItemSelect(0, true); //Select the very first item.
 	}
 
 
@@ -1016,7 +1016,7 @@ namespace DWFONTCHOOSE {
 	}
 
 	auto CDWFontChooseEnum::GetLineSpacing()const->float {
-		return m_flLineSpacing;
+		return m_flLineSpacingDIP;
 	}
 
 	auto CDWFontChooseEnum::GetScrollPosPx()const->int {
@@ -1048,30 +1048,7 @@ namespace DWFONTCHOOSE {
 		m_Wnd.RedrawWindow();
 	}
 
-	void CDWFontChooseEnum::ItemSelectIncDec(UINT32 u32Items, bool fInc)
-	{
-		if (!IsDataSet()) {
-			return;
-		}
-
-		UINT32 u32ItemToSelect;
-		if (fInc) {
-			u32ItemToSelect = m_u32ItemSelected + u32Items;
-		}
-		else {
-			if (u32Items > m_u32ItemSelected) {
-				u32ItemToSelect = 0;
-			}
-			else {
-				u32ItemToSelect = m_u32ItemSelected - u32Items;
-			}
-		}
-
-		ItemSelect(u32ItemToSelect);
-		EnsureVisible(u32ItemToSelect);
-	}
-
-	void CDWFontChooseEnum::ItemSelect(UINT32 u32Item)
+	void CDWFontChooseEnum::ItemSelect(UINT32 u32Item, bool fChangeHighlight)
 	{
 		if (!IsDataSet()) {
 			return;
@@ -1098,10 +1075,37 @@ namespace DWFONTCHOOSE {
 		}
 
 		m_u32ItemSelected = u32Item;
+		if (fChangeHighlight) {
+			m_u32ItemHighlighted = m_u32ItemSelected;
+		}
+
 		FONTCHOOSE fc { .hdr { .hwndFrom { m_Wnd }, .idFrom { static_cast<UINT_PTR>(m_Wnd.GetDlgCtrlID()) },
 			.code { MSG_FONT_CHOOSE } }, .u32FamilyItemID { u32FamilyItemID }, .u32FaceItemID { u32FaceItemID } };
 		m_Wnd.GetParent().SendMsg(WM_NOTIFY, 0, reinterpret_cast<LPARAM>(&fc));
 		m_Wnd.RedrawWindow();
+	}
+
+	void CDWFontChooseEnum::ItemSelectIncDec(UINT32 u32Items, bool fInc)
+	{
+		if (!IsDataSet()) {
+			return;
+		}
+
+		UINT32 u32ItemToSelect;
+		if (fInc) {
+			u32ItemToSelect = m_u32ItemSelected + u32Items;
+		}
+		else {
+			if (u32Items > m_u32ItemSelected) {
+				u32ItemToSelect = 0;
+			}
+			else {
+				u32ItemToSelect = m_u32ItemSelected - u32Items;
+			}
+		}
+
+		ItemSelect(u32ItemToSelect, false);
+		EnsureVisible(u32ItemToSelect);
 	}
 
 	bool CDWFontChooseEnum::IsDataSet()const {
@@ -1150,8 +1154,7 @@ namespace DWFONTCHOOSE {
 	{
 		const POINT pt { .x { ut::GetXLPARAM(msg.lParam) }, .y { ut::GetYLPARAM(msg.lParam) } };
 		m_Wnd.SetFocus();
-		m_u32ItemHighlighted = static_cast<UINT32>((pt.y + GetScrollPosPx()) / GetLineHeightPx());
-		ItemSelect(m_u32ItemHighlighted);
+		ItemSelect(static_cast<UINT32>((pt.y + GetScrollPosPx()) / GetLineHeightPx()), true);
 
 		return 0;
 	}
@@ -1228,7 +1231,7 @@ namespace DWFONTCHOOSE {
 				.flSizeDIP { m_flSizeFontMainDIP * 1.5F } };
 			DXUT::comptr pFormatSample = DXUT::DWCreateTextFormat(tfiSample);
 			pFormatSample->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
-			pFormatSample->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, GetLineSpacing(), m_flBaseLine);
+			pFormatSample->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, GetLineSpacing(), m_flBaseLineDIP);
 			const auto pLayoutSample = DXUT::DWCreateTextLayout(L"Sample", pFormatSample, 0, 0);
 			const auto flY = (static_cast<float>(uLine) * GetLineSpacing()) - liv.flFirstItemCoordY;
 			m_pD2DDeviceContext->DrawTextLayout(D2D1::Point2F(liv.flFirstItemCoordX, flY), pLayoutSample, m_pD2DBrushBlack);
@@ -1345,20 +1348,24 @@ namespace DWFONTCHOOSE {
 		void CreateTextLayout();
 		template <typename T> requires std::is_arithmetic_v<T>
 		[[nodiscard]] auto DIPFromPixels(T t)const -> float;
+		void EnsureVisible(UINT32 u32TextPos)const;
 		[[nodiscard]] auto GetDataSize()const -> UINT32;
 		[[nodiscard]] auto GetDPIScale()const -> float;
+		[[nodiscard]] auto GetLineHeightDIP()const -> float;
+		[[nodiscard]] auto GetLineHeightPx()const -> UINT32;
+		auto OnChar(const MSG& msg) -> LRESULT;
+		auto OnEraseBkgnd(const MSG& msg) -> LRESULT;
+		auto OnGetDlgCode(const MSG& msg) -> LRESULT;
+		auto OnKeyDown(const MSG& msg) -> INT_PTR;
 		void OnKeyLeft();
 		void OnKeyRight();
 		void OnKeyUp();
 		void OnKeyDown();
 		void OnKeyDelete();
+		void OnKeyEnter();
 		void OnKeyBackspace();
 		void OnKeyHome();
 		void OnKeyEnd();
-		auto OnChar(const MSG& msg) -> LRESULT;
-		auto OnEraseBkgnd(const MSG& msg) -> LRESULT;
-		auto OnGetDlgCode(const MSG& msg) -> LRESULT;
-		auto OnKeyDown(const MSG& msg) -> INT_PTR;
 		auto OnLButtonDown(const MSG& msg) -> INT_PTR;
 		auto OnLButtonUp(const MSG& msg) -> INT_PTR;
 		auto OnMouseMove(const MSG& msg) -> INT_PTR;
@@ -1368,6 +1375,7 @@ namespace DWFONTCHOOSE {
 		auto OnVScroll(const MSG& msg) -> LRESULT;
 		[[nodiscard]] int PixelsFromDIP(float flDIP)const;
 		void RecalcScroll();
+		void RemoveSelected();
 		static auto CALLBACK SubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
 			UINT_PTR uIDSubclass, DWORD_PTR dwRefData)->LRESULT;
 	private:
@@ -1391,6 +1399,7 @@ namespace DWFONTCHOOSE {
 		UINT32 m_u32StartSel { };
 		UINT32 m_u32SizeSel { };
 		float m_flDPIScale { 1.F }; //DPI scale factor for the window.
+		float m_flLineHeightDIP { };
 		bool m_fLMDown { };
 	};
 
@@ -1481,6 +1490,13 @@ namespace DWFONTCHOOSE {
 			DIPFromPixels(rcClient.Height()));
 		m_pLayoutData->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
 		m_pLayoutData->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+
+		UINT32 u32Lines;
+		m_pLayoutData->GetLineMetrics(nullptr, 0, &u32Lines);
+		const auto lm = std::make_unique_for_overwrite<DWRITE_LINE_METRICS[]>(u32Lines);
+		m_pLayoutData->GetLineMetrics(lm.get(), u32Lines, &u32Lines);
+		m_flLineHeightDIP = *&lm[0].height;
+
 		RecalcScroll();
 		m_Wnd.RedrawWindow();
 	}
@@ -1491,12 +1507,48 @@ namespace DWFONTCHOOSE {
 		return t / GetDPIScale();
 	}
 
+	void CDWFontChooseSampleText::EnsureVisible(UINT32 u32TextPos)const
+	{
+		const auto iScrollYPx = m_Wnd.GetScrollPos(true);
+		const auto iHeightClnt = m_Wnd.GetClientRect().Height();
+
+		DWRITE_HIT_TEST_METRICS htm;
+		float flX;
+		float flY;
+		m_pLayoutData->HitTestTextPosition(u32TextPos, FALSE, &flX, &flY, &htm);
+		const int iCurrPosTopPx = PixelsFromDIP(flY);
+		const int iCurrPosBotPx = PixelsFromDIP(flY + htm.height);
+
+		int iScrollYNewPx = 0xFFFFFFFF;
+		if (iCurrPosTopPx < iScrollYPx) {
+			iScrollYNewPx = iCurrPosTopPx;
+		}
+		else if (iCurrPosTopPx >= (iScrollYPx + iHeightClnt)
+			|| (iCurrPosBotPx >= (iScrollYPx + iHeightClnt) && (PixelsFromDIP(htm.height) <= iHeightClnt))) {
+			iScrollYNewPx = iCurrPosTopPx - iHeightClnt + PixelsFromDIP(htm.height);
+		}
+
+		if (iScrollYNewPx != 0xFFFFFFFF) {
+			m_Wnd.SetScrollPos(true, iScrollYNewPx);
+		}
+
+		m_Wnd.RedrawWindow();
+	}
+
 	auto CDWFontChooseSampleText::GetDataSize()const->UINT32 {
 		return static_cast<UINT32>(m_wstrData.size());
 	}
 
 	auto CDWFontChooseSampleText::GetDPIScale()const->float {
 		return m_flDPIScale;
+	}
+
+	auto CDWFontChooseSampleText::GetLineHeightDIP()const->float {
+		return m_flLineHeightDIP;
+	}
+
+	auto CDWFontChooseSampleText::GetLineHeightPx()const->UINT32 {
+		return PixelsFromDIP(m_flLineHeightDIP);
 	}
 
 	auto CDWFontChooseSampleText::OnChar(const MSG& msg)->LRESULT
@@ -1506,6 +1558,7 @@ namespace DWFONTCHOOSE {
 			return 0;
 		}
 
+		RemoveSelected();
 		m_wstrData.insert(m_u32CaretPos++, 1, wChar);
 		CreateTextLayout();
 
@@ -1538,6 +1591,7 @@ namespace DWFONTCHOOSE {
 			OnKeyDelete();
 			break;
 		case VK_RETURN:
+			OnKeyEnter();
 			break;
 		case VK_LEFT:
 			OnKeyLeft();
@@ -1570,8 +1624,7 @@ namespace DWFONTCHOOSE {
 			return;
 		}
 
-		--m_u32CaretPos;
-		m_Wnd.RedrawWindow();
+		EnsureVisible(--m_u32CaretPos);
 	}
 
 	void CDWFontChooseSampleText::OnKeyRight()
@@ -1580,16 +1633,57 @@ namespace DWFONTCHOOSE {
 			return;
 		}
 
-		++m_u32CaretPos;
-		m_Wnd.RedrawWindow();
+		EnsureVisible(++m_u32CaretPos);
 	}
 
 	void CDWFontChooseSampleText::OnKeyUp()
 	{
+		if (!m_pLayoutData) {
+			return;
+		}
+
+		DWRITE_HIT_TEST_METRICS htm;
+		float flX;
+		float flY;
+		m_pLayoutData->HitTestTextPosition(m_u32CaretPos, FALSE, &flX, &flY, &htm);
+		const auto u32LineCaret = static_cast<UINT32>(flY / GetLineHeightDIP());
+		if (u32LineCaret == 0) { //First line.
+			m_u32CaretPos = 0;
+		}
+		else {
+			BOOL fIsTrail;
+			BOOL fIsInside;
+			m_pLayoutData->HitTestPoint(flX, flY - GetLineHeightDIP(), &fIsTrail, &fIsInside, &htm);
+			m_u32CaretPos = htm.textPosition;
+		}
+
+		EnsureVisible(m_u32CaretPos);
 	}
 
 	void CDWFontChooseSampleText::OnKeyDown()
 	{
+		if (!m_pLayoutData) {
+			return;
+		}
+
+		DWRITE_HIT_TEST_METRICS htm;
+		float flX;
+		float flY;
+		m_pLayoutData->HitTestTextPosition(m_u32CaretPos, FALSE, &flX, &flY, &htm);
+		const auto u32LineCaret = static_cast<UINT32>(std::lround(flY / GetLineHeightDIP()));
+		DWRITE_TEXT_METRICS tm;
+		m_pLayoutData->GetMetrics(&tm);
+		if (u32LineCaret == (tm.lineCount - 1)) { //Last line.
+			m_u32CaretPos = static_cast<UINT32>(m_wstrData.size());
+		}
+		else {
+			BOOL fIsTrail;
+			BOOL fIsInside;
+			m_pLayoutData->HitTestPoint(flX, flY + GetLineHeightDIP() + (GetLineHeightDIP() / 2), &fIsTrail, &fIsInside, &htm);
+			m_u32CaretPos = htm.textPosition + (fIsTrail ? 1 : 0);
+		}
+
+		EnsureVisible(m_u32CaretPos);
 	}
 
 	void CDWFontChooseSampleText::OnKeyDelete()
@@ -1602,13 +1696,19 @@ namespace DWFONTCHOOSE {
 			m_wstrData.erase(m_u32CaretPos, 1);
 		}
 		else {
-			m_wstrData.erase(m_u32StartSel, m_u32SizeSel);
-			m_u32CaretPos = m_u32StartSel;
-			m_u32StartSel = m_u32SizeSel = 0;
+			RemoveSelected();
 		}
 
 		CreateTextLayout();
-		m_Wnd.RedrawWindow();
+		EnsureVisible(m_u32CaretPos);
+	}
+
+	void CDWFontChooseSampleText::OnKeyEnter()
+	{
+		RemoveSelected();
+		m_wstrData.insert(m_u32CaretPos++, 1, L'\r');
+		CreateTextLayout();
+		EnsureVisible(m_u32CaretPos);
 	}
 
 	void CDWFontChooseSampleText::OnKeyBackspace()
@@ -1618,31 +1718,27 @@ namespace DWFONTCHOOSE {
 		}
 
 		if (m_u32SizeSel == 0) {
-			if (m_u32CaretPos == 0) { return; }
+			if (m_u32CaretPos == 0) {
+				return;
+			}
 
 			m_wstrData.erase(m_u32CaretPos - 1, 1);
 			--m_u32CaretPos;
 		}
 		else {
-			m_wstrData.erase(m_u32StartSel, m_u32SizeSel);
-			m_u32CaretPos = m_u32StartSel;
-			m_u32StartSel = m_u32SizeSel = 0;
+			RemoveSelected();
 		}
 
 		CreateTextLayout();
-		m_Wnd.RedrawWindow();
+		EnsureVisible(m_u32CaretPos);
 	}
 
-	void CDWFontChooseSampleText::OnKeyHome()
-	{
-		m_u32CaretPos = 0;
-		m_Wnd.RedrawWindow();
+	void CDWFontChooseSampleText::OnKeyHome() {
+		EnsureVisible(m_u32CaretPos = 0);
 	}
 
-	void CDWFontChooseSampleText::OnKeyEnd()
-	{
-		m_u32CaretPos = GetDataSize();
-		m_Wnd.RedrawWindow();
+	void CDWFontChooseSampleText::OnKeyEnd() {
+		EnsureVisible(m_u32CaretPos = GetDataSize());
 	}
 
 	auto CDWFontChooseSampleText::OnLButtonDown([[maybe_unused]] const MSG& msg)->LRESULT
@@ -1655,14 +1751,9 @@ namespace DWFONTCHOOSE {
 		BOOL fIsTrail;
 		BOOL fIsInside;
 		DWRITE_HIT_TEST_METRICS htm;
-		m_pLayoutData->HitTestPoint(DIPFromPixels(pt.x), DIPFromPixels(pt.y), &fIsTrail, &fIsInside, &htm);
-		if (fIsInside) {
-			m_u32CaretPos = htm.textPosition + ((DIPFromPixels(pt.x) > (htm.left + (htm.width / 2))) ? 1 : 0);
-		}
-		else {
-			m_u32CaretPos = htm.textPosition + (htm.textPosition == (m_wstrData.size() - 1) ? 1 : 0);
-		}
-
+		m_pLayoutData->HitTestPoint(DIPFromPixels(pt.x), DIPFromPixels(pt.y) + DIPFromPixels(m_Wnd.GetScrollPos(true)),
+			&fIsTrail, &fIsInside, &htm);
+		m_u32CaretPos = htm.textPosition + (fIsTrail ? 1 : 0);
 		m_u32SizeSel = 0;
 		m_fLMDown = true;
 		m_Wnd.SetFocus();
@@ -1690,19 +1781,19 @@ namespace DWFONTCHOOSE {
 		BOOL fIsTrail;
 		BOOL fIsInside;
 		DWRITE_HIT_TEST_METRICS htm;
-		m_pLayoutData->HitTestPoint(DIPFromPixels(pt.x), DIPFromPixels(pt.y), &fIsTrail, &fIsInside, &htm);
+		m_pLayoutData->HitTestPoint(DIPFromPixels(pt.x), DIPFromPixels(pt.y) + DIPFromPixels(m_Wnd.GetScrollPos(true)),
+			&fIsTrail, &fIsInside, &htm);
 		if (fIsInside) {
 			if (htm.textPosition == m_u32CaretPos) {
 				m_u32StartSel = m_u32CaretPos;
-				m_u32SizeSel = (DIPFromPixels(pt.x) > (htm.left + (htm.width / 2))) ? 1 : 0;
+				m_u32SizeSel = fIsTrail ? 1 : 0;
 			}
 			else if (htm.textPosition > m_u32CaretPos) {
 				m_u32StartSel = m_u32CaretPos;
-				m_u32SizeSel = (htm.textPosition - m_u32CaretPos)
-					+ (DIPFromPixels(pt.x) > (htm.left + (htm.width / 2)) ? 1 : 0);
+				m_u32SizeSel = (htm.textPosition - m_u32CaretPos) + (fIsTrail ? 1 : 0);
 			}
 			else { //htm.textPosition < m_u32CaretPos.
-				m_u32StartSel = htm.textPosition + ((DIPFromPixels(pt.x) < (htm.left + (htm.width / 2))) ? 0 : 1);
+				m_u32StartSel = htm.textPosition + (fIsTrail ? 1 : 0);
 				m_u32SizeSel = m_u32CaretPos - m_u32StartSel;
 			}
 
@@ -1747,7 +1838,9 @@ namespace DWFONTCHOOSE {
 			DWRITE_HIT_TEST_METRICS htm;
 			m_pLayoutData->HitTestTextPosition(m_u32CaretPos, FALSE, &flX, &flY, &htm);
 			m_pD2DDeviceContext->DrawLine(
-				D2D1::Point2F(htm.left, htm.top), D2D1::Point2F(htm.left, htm.top + htm.height), m_pD2DBrushBlack);
+				D2D1::Point2F(htm.left, htm.top - DIPFromPixels(m_Wnd.GetScrollPos(true))),
+				D2D1::Point2F(htm.left, (htm.top + htm.height) - DIPFromPixels(m_Wnd.GetScrollPos(true))),
+				m_pD2DBrushBlack);
 		}
 
 		m_pD2DDeviceContext->EndDraw();
@@ -1832,6 +1925,16 @@ namespace DWFONTCHOOSE {
 		si.nMax = iMax;
 		si.nPage = rcClient.Height();
 		m_Wnd.SetScrollInfo(true, si);
+	}
+
+	void CDWFontChooseSampleText::RemoveSelected()
+	{
+		if (m_u32SizeSel == 0)
+			return;
+
+		m_wstrData.erase(m_u32StartSel, m_u32SizeSel);
+		m_u32CaretPos = m_u32StartSel;
+		m_u32StartSel = m_u32SizeSel = 0;
 	}
 
 	auto CDWFontChooseSampleText::SubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,

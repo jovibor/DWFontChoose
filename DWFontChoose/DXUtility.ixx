@@ -26,7 +26,7 @@ export namespace DXUT {
 		operator TCom**() { return get_addr(); }
 		operator IUnknown**() { return reinterpret_cast<IUnknown**>(get_addr()); }
 		operator void**() { return reinterpret_cast<void**>(get_addr()); }
-		auto operator->()->TCom* { return get(); }
+		auto operator->()const->TCom* { return get(); }
 		auto operator=(const comptr<TCom>& rhs)->comptr& {
 			if (this != &rhs) {
 				safe_release();	m_pTCom = rhs.get(); safe_addref();

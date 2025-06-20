@@ -32,10 +32,21 @@
     <ResourceCompile Include="..\DWFontChoose\DWFontChoose.rc">
       <Filter>DWFontChoose</Filter>
     </ResourceCompile>
+    <ResourceCompile Include="res\main.rc">
+      <Filter>Resource Files</Filter>
+    </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\DWFontChoose\DWFontChooseRes.h">
       <Filter>DWFontChoose</Filter>
     </ClInclude>
+    <ClInclude Include="res\Resources.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="res\logo.ico">
+      <Filter>Resource Files</Filter>
+    </Image>
   </ItemGroup>
 </Project>
