@@ -12,9 +12,8 @@ On dialog exit a `std::optional<DWFONTINFO>` is returned. The `DWFONTINFO` struc
 import DWFontChoose;
 
 int WinMain() {
-	const auto fontInfo = DWFontChoose();
-	...
-
+    const auto optFontInfo = DWFontChoose();
+    ...
     return 0;
 }
 ```

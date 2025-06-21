@@ -1336,6 +1336,8 @@ namespace DWFONTCHOOSE {
 
 
 	//class CDWFontChooseSampleText.
+	constexpr auto WM_MOSEWHEELUPCTRL { 0x01U };
+	constexpr auto WM_MOSEWHEELDOWNCTRL { 0x02U };
 
 	class CDWFontChooseSampleText final {
 	public:
@@ -1806,9 +1808,18 @@ namespace DWFONTCHOOSE {
 	auto CDWFontChooseSampleText::OnMouseWheel(const MSG& msg)->LRESULT
 	{
 		const auto iDelta = GET_WHEEL_DELTA_WPARAM(msg.wParam);
-		const auto iScrollY = (m_Wnd.GetClientRect().Height() / 4) * (iDelta > 0 ? -1 : 1);
-		m_Wnd.SetScrollPos(true, m_Wnd.GetScrollPos(true) + iScrollY);
-		m_Wnd.RedrawWindow();
+
+		if (::GetAsyncKeyState(VK_CONTROL) < 0) {
+			const UINT32 u32CtrlID = m_Wnd.GetDlgCtrlID();
+			NMHDR hdr { .hwndFrom { m_Wnd }, .idFrom { u32CtrlID }, .code {
+				iDelta > 0 ? WM_MOSEWHEELUPCTRL : WM_MOSEWHEELDOWNCTRL } };
+			m_Wnd.GetParent().SendMsg(WM_NOTIFY, u32CtrlID, reinterpret_cast<LPARAM>(&hdr));
+		}
+		else {
+			const auto iScrollY = (m_Wnd.GetClientRect().Height() / 4) * (iDelta > 0 ? -1 : 1);
+			m_Wnd.SetScrollPos(true, m_Wnd.GetScrollPos(true) + iScrollY);
+			m_Wnd.RedrawWindow();
+		}
 
 		return 0;
 	}
@@ -2348,6 +2359,9 @@ namespace DWFONTCHOOSE {
 			default:
 				break;
 			}
+			break;
+		case IDC_CUSTOM_FONT_SAMPLE:
+			EditSizeIncDec(pNMHDR->code == WM_MOSEWHEELUPCTRL ? 1 : (pNMHDR->code == WM_MOSEWHEELDOWNCTRL ? -1 : 0));
 			break;
 		default:
 			break;
