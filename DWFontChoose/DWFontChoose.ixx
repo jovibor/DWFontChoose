@@ -1489,6 +1489,7 @@ namespace DWFONTCHOOSE {
 			.pBrushTextDef { m_pD2DBrushBlack } });
 	}
 
+
 	void CDWFontChooseSampleText::ClipboardCopy()const
 	{
 		if (m_u32SizeSel == 0)
@@ -1558,6 +1559,10 @@ namespace DWFONTCHOOSE {
 	void CDWFontChooseSampleText::CreateTextLayout()
 	{
 		const auto rcClient = m_Wnd.GetClientRect();
+		if (GetDataSize() > 1024) { //Trim the string to 1024 wchars.
+			m_wstrData.resize(1024);
+		}
+
 		m_pLayoutData = DXUT::DWCreateTextLayout(m_wstrData, m_pTextFormat, DIPFromPixels(rcClient.Width()),
 			DIPFromPixels(rcClient.Height()));
 		m_pLayoutData->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
@@ -1572,7 +1577,6 @@ namespace DWFONTCHOOSE {
 		RecalcScroll();
 		m_Wnd.RedrawWindow();
 	}
-
 
 	template <typename T> requires std::is_arithmetic_v<T>
 	auto CDWFontChooseSampleText::DIPFromPixels(T t)const->float {
@@ -1760,7 +1764,7 @@ namespace DWFONTCHOOSE {
 		DWRITE_TEXT_METRICS tm;
 		m_pLayoutData->GetMetrics(&tm);
 		if (u32LineCaret == (tm.lineCount - 1)) { //Last line.
-			m_u32CaretPos = static_cast<UINT32>(m_wstrData.size());
+			m_u32CaretPos = GetDataSize();
 		}
 		else {
 			BOOL fIsTrail;
@@ -1808,8 +1812,7 @@ namespace DWFONTCHOOSE {
 				return;
 			}
 
-			m_wstrData.erase(m_u32CaretPos - 1, 1);
-			--m_u32CaretPos;
+			m_wstrData.erase(--m_u32CaretPos, 1);
 		}
 		else {
 			RemoveSelected();
