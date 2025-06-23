@@ -1347,6 +1347,9 @@ namespace DWFONTCHOOSE {
 		[[nodiscard]] auto ProcessMsg(const MSG& msg) -> LRESULT;
 		void SetFontInfo(const DXUT::DWFONTINFO& fi);
 	private:
+		void ClipboardCopy()const;
+		void ClipboardCut();
+		void ClipboardPaste();
 		void CreateTextLayout();
 		template <typename T> requires std::is_arithmetic_v<T>
 		[[nodiscard]] auto DIPFromPixels(T t)const -> float;
@@ -1378,6 +1381,7 @@ namespace DWFONTCHOOSE {
 		[[nodiscard]] int PixelsFromDIP(float flDIP)const;
 		void RecalcScroll();
 		void RemoveSelected();
+		void SelectAll();
 		static auto CALLBACK SubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
 			UINT_PTR uIDSubclass, DWORD_PTR dwRefData)->LRESULT;
 	private:
@@ -1485,6 +1489,72 @@ namespace DWFONTCHOOSE {
 			.pBrushTextDef { m_pD2DBrushBlack } });
 	}
 
+	void CDWFontChooseSampleText::ClipboardCopy()const
+	{
+		if (m_u32SizeSel == 0)
+			return;
+
+		const auto wstr = m_wstrData.substr(m_u32StartSel, m_u32SizeSel);
+		const auto sSize = (wstr.size() + 1) * sizeof(wchar_t);
+		const auto hMem = ::GlobalAlloc(GMEM_MOVEABLE, sSize);
+		if (!hMem) {
+			ut::DBG_REPORT(L"GlobalAlloc error.");
+			return;
+		}
+
+		const auto pMemLock = ::GlobalLock(hMem);
+		if (!pMemLock) {
+			ut::DBG_REPORT(L"GlobalLock error.");
+			return;
+		}
+
+		std::memcpy(pMemLock, wstr.data(), sSize);
+		::GlobalUnlock(hMem);
+		if (::OpenClipboard(m_Wnd) == FALSE) {
+			ut::DBG_REPORT(L"OpenClipboard error.");
+			return;
+		}
+
+		::EmptyClipboard();
+		::SetClipboardData(CF_UNICODETEXT, hMem);
+		::CloseClipboard();
+	}
+
+	void CDWFontChooseSampleText::ClipboardCut()
+	{
+		if (m_u32SizeSel == 0)
+			return;
+
+		ClipboardCopy();
+		RemoveSelected();
+		CreateTextLayout();
+	}
+
+	void CDWFontChooseSampleText::ClipboardPaste()
+	{
+		if (!m_pLayoutData || !::OpenClipboard(m_Wnd))
+			return;
+
+		const auto hClpbrd = ::GetClipboardData(CF_UNICODETEXT);
+		if (!hClpbrd) {
+			ut::DBG_REPORT(L"GetClipboardData error.");
+			return;
+		}
+
+		const auto pData = static_cast<wchar_t*>(::GlobalLock(hClpbrd));
+		if (pData == nullptr) {
+			ut::DBG_REPORT(L"GlobalLock error.");
+			::CloseClipboard();
+			return;
+		}
+
+		RemoveSelected();
+		m_wstrData.insert(m_u32CaretPos, pData);
+		::GlobalUnlock(hClpbrd);
+		::CloseClipboard();
+		CreateTextLayout();
+	}
+
 	void CDWFontChooseSampleText::CreateTextLayout()
 	{
 		const auto rcClient = m_Wnd.GetClientRect();
@@ -1578,43 +1648,57 @@ namespace DWFONTCHOOSE {
 	auto CDWFontChooseSampleText::OnKeyDown(const MSG& msg)->LRESULT
 	{
 		const auto wVKey = LOWORD(msg.wParam); //Virtual-key code (both: WM_KEYDOWN/WM_SYSKEYDOWN).
-		switch (wVKey) {
-		case 'A':
-			if (::GetAsyncKeyState(VK_CONTROL) < 0) {
-				m_u32StartSel = 0;
-				m_u32SizeSel = GetDataSize();
-				m_Wnd.RedrawWindow();
+
+		if (::GetAsyncKeyState(VK_CONTROL) < 0) { //Ctrl+...
+			switch (wVKey) {
+			case 'A':
+				SelectAll();
+				break;
+			case 'C':
+				ClipboardCopy();
+				break;
+			case 'X':
+				ClipboardCut();
+				break;
+			case 'V':
+				ClipboardPaste();
+				break;
+			default:
+				break;
 			}
-			break;
-		case VK_BACK:
-			OnKeyBackspace();
-			break;
-		case VK_DELETE:
-			OnKeyDelete();
-			break;
-		case VK_RETURN:
-			OnKeyEnter();
-			break;
-		case VK_LEFT:
-			OnKeyLeft();
-			break;
-		case VK_RIGHT:
-			OnKeyRight();
-			break;
-		case VK_UP:
-			OnKeyUp();
-			break;
-		case VK_DOWN:
-			OnKeyDown();
-			break;
-		case VK_HOME:
-			OnKeyHome();
-			break;
-		case VK_END:
-			OnKeyEnd();
-			break;
-		default:
-			break;
+		}
+		else {
+			switch (wVKey) {
+			case VK_BACK:
+				OnKeyBackspace();
+				break;
+			case VK_DELETE:
+				OnKeyDelete();
+				break;
+			case VK_RETURN:
+				OnKeyEnter();
+				break;
+			case VK_LEFT:
+				OnKeyLeft();
+				break;
+			case VK_RIGHT:
+				OnKeyRight();
+				break;
+			case VK_UP:
+				OnKeyUp();
+				break;
+			case VK_DOWN:
+				OnKeyDown();
+				break;
+			case VK_HOME:
+				OnKeyHome();
+				break;
+			case VK_END:
+				OnKeyEnd();
+				break;
+			default:
+				break;
+			}
 		}
 
 		return 0;
@@ -1946,6 +2030,13 @@ namespace DWFONTCHOOSE {
 		m_wstrData.erase(m_u32StartSel, m_u32SizeSel);
 		m_u32CaretPos = m_u32StartSel;
 		m_u32StartSel = m_u32SizeSel = 0;
+	}
+
+	void CDWFontChooseSampleText::SelectAll()
+	{
+		m_u32StartSel = 0;
+		m_u32SizeSel = GetDataSize();
+		m_Wnd.RedrawWindow();
 	}
 
 	auto CDWFontChooseSampleText::SubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
