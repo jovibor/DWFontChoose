@@ -942,8 +942,8 @@ namespace DWFONTCHOOSE {
 		const auto iLineHeightPx = GetLineHeightPx();
 		const auto rcClient = m_Wnd.GetClientRect();
 		const int iItemPos = u32Item * iLineHeightPx;
-		int iPosScrollNew = 0xFFFFFFFF;
 
+		int iPosScrollNew = 0xFFFFFFFFU;
 		if (iItemPos < iScrollYPx) {
 			iPosScrollNew = iItemPos;
 		}
@@ -951,7 +951,7 @@ namespace DWFONTCHOOSE {
 			iPosScrollNew = iItemPos - rcClient.Height() + iLineHeightPx;
 		}
 
-		if (iPosScrollNew != 0xFFFFFFFF) {
+		if (iPosScrollNew != 0xFFFFFFFFU) {
 			m_Wnd.SetScrollPos(true, iPosScrollNew);
 		}
 
@@ -1346,6 +1346,8 @@ namespace DWFONTCHOOSE {
 		void Create(HWND hWndParent, UINT uCtrlID);
 		[[nodiscard]] auto ProcessMsg(const MSG& msg) -> LRESULT;
 		void SetFontInfo(const DXUT::DWFONTINFO& fi);
+		void SetUnderline(bool fIsUnderline);
+		void SetStrikethrough(bool fIsStrikethrough);
 	private:
 		void ClipboardCopy()const;
 		void ClipboardCut();
@@ -1401,12 +1403,14 @@ namespace DWFONTCHOOSE {
 		DXUT::CDWriteTextRenderer m_D2DTextRenderer;
 		DXUT::CTextEffect m_effSelection;
 		std::wstring m_wstrData { L"The quick brown fox jumps over the lazy dog." };
-		UINT32 m_u32CaretPos { 0xFFFFFFFF };
+		UINT32 m_u32CaretPos { 0xFFFFFFFFU };
 		UINT32 m_u32StartSel { };
 		UINT32 m_u32SizeSel { };
 		float m_flDPIScale { 1.F }; //DPI scale factor for the window.
 		float m_flLineHeightDIP { };
 		bool m_fLMDown { };
+		bool m_fIsUnderline { false };
+		bool m_fIsStrikethrough { false };
 	};
 
 	CDWFontChooseSampleText::CDWFontChooseSampleText() {
@@ -1485,8 +1489,19 @@ namespace DWFONTCHOOSE {
 	{
 		m_pTextFormat = DWCreateTextFormat(fi);
 		CreateTextLayout();
-		m_D2DTextRenderer.SetDrawContext({ .pDeviceContext { m_pD2DDeviceContext }, .pTextLayout { m_pLayoutData },
-			.pBrushTextDef { m_pD2DBrushBlack } });
+		m_D2DTextRenderer.SetDrawContext({ .pDeviceContext { m_pD2DDeviceContext }, .pBrushTextDef { m_pD2DBrushBlack } });
+	}
+
+	void CDWFontChooseSampleText::SetUnderline(bool fIsUnderline)
+	{
+		m_fIsUnderline = fIsUnderline;
+		m_Wnd.RedrawWindow();
+	}
+
+	void CDWFontChooseSampleText::SetStrikethrough(bool fIsStrikethrough)
+	{
+		m_fIsStrikethrough = fIsStrikethrough;
+		m_Wnd.RedrawWindow();
 	}
 
 
@@ -1595,17 +1610,17 @@ namespace DWFONTCHOOSE {
 		const int iCurrPosTopPx = PixelsFromDIP(flY);
 		const int iCurrPosBotPx = PixelsFromDIP(flY + htm.height);
 
-		int iScrollYNewPx = 0xFFFFFFFF;
+		int iPosScrollNew = 0xFFFFFFFFU;
 		if (iCurrPosTopPx < iScrollYPx) {
-			iScrollYNewPx = iCurrPosTopPx;
+			iPosScrollNew = iCurrPosTopPx;
 		}
 		else if (iCurrPosTopPx >= (iScrollYPx + iHeightClnt)
 			|| (iCurrPosBotPx >= (iScrollYPx + iHeightClnt) && (PixelsFromDIP(htm.height) <= iHeightClnt))) {
-			iScrollYNewPx = iCurrPosTopPx - iHeightClnt + PixelsFromDIP(htm.height);
+			iPosScrollNew = iCurrPosTopPx - iHeightClnt + PixelsFromDIP(htm.height);
 		}
 
-		if (iScrollYNewPx != 0xFFFFFFFF) {
-			m_Wnd.SetScrollPos(true, iScrollYNewPx);
+		if (iPosScrollNew != 0xFFFFFFFF) {
+			m_Wnd.SetScrollPos(true, iPosScrollNew);
 		}
 
 		m_Wnd.RedrawWindow();
@@ -1710,7 +1725,7 @@ namespace DWFONTCHOOSE {
 
 	void CDWFontChooseSampleText::OnKeyLeft()
 	{
-		if (m_u32CaretPos == 0xFFFFFFFF || m_u32CaretPos == 0) {
+		if (m_u32CaretPos == 0 || m_u32CaretPos > GetDataSize()) {
 			return;
 		}
 
@@ -1719,7 +1734,7 @@ namespace DWFONTCHOOSE {
 
 	void CDWFontChooseSampleText::OnKeyRight()
 	{
-		if (m_u32CaretPos == 0xFFFFFFFF || m_u32CaretPos >= GetDataSize()) {
+		if (m_u32CaretPos >= GetDataSize()) {
 			return;
 		}
 
@@ -1923,6 +1938,8 @@ namespace DWFONTCHOOSE {
 		}
 
 		m_pLayoutData->SetDrawingEffect(nullptr, { .startPosition { 0 }, .length { GetDataSize() } });
+		m_pLayoutData->SetUnderline(m_fIsUnderline, { .startPosition { 0 }, .length { GetDataSize() } });
+		m_pLayoutData->SetStrikethrough(m_fIsStrikethrough, { .startPosition { 0 }, .length { GetDataSize() } });
 		if (m_u32SizeSel > 0) {
 			m_pLayoutData->SetDrawingEffect(&m_effSelection, { .startPosition { m_u32StartSel },
 				.length { m_u32SizeSel } });
@@ -1930,7 +1947,7 @@ namespace DWFONTCHOOSE {
 
 		m_pLayoutData->Draw(nullptr, &m_D2DTextRenderer, 0, -DIPFromPixels(m_Wnd.GetScrollPos(true)));
 
-		if (m_u32CaretPos != 0xFFFFFFFF) {
+		if (m_u32CaretPos != 0xFFFFFFFFU) { //Draw caret.
 			float flX;
 			float flY;
 			DWRITE_HIT_TEST_METRICS htm;
@@ -2067,6 +2084,8 @@ namespace DWFONTCHOOSE {
 		[[nodiscard]] auto GetFontInfo() -> DXUT::DWFONTINFO;
 		void FontFaceChoosen(const FONTCHOOSE* pFontChoose);
 		void OnCancel();
+		void OnCheckUnderline();
+		void OnCheckStrikethrough();
 		auto OnCommand(const MSG& msg) -> INT_PTR;
 		void OnCommandCombo(DWORD dwCtrlID, DWORD dwCode);
 		void OnCommandEdit(DWORD dwCtrlID, DWORD dwCode);
@@ -2211,6 +2230,18 @@ namespace DWFONTCHOOSE {
 		UpdateSampleText();
 	}
 
+	void CDWFontChooseDlg::OnCheckUnderline()
+	{
+		GDIUT::CWndBtn chk(m_Wnd.GetDlgItem(IDC_CHK_UNDERLINE));
+		m_SampleText.SetUnderline(chk.IsChecked());
+	}
+
+	void CDWFontChooseDlg::OnCheckStrikethrough()
+	{
+		GDIUT::CWndBtn chk(m_Wnd.GetDlgItem(IDC_CHK_STRIKETHROUGH));
+		m_SampleText.SetStrikethrough(chk.IsChecked());
+	}
+
 	auto CDWFontChooseDlg::GetEditFontSize()const->float {
 		return std::clamp(m_EditSize.IsWndTextEmpty() ? 1.F : std::stof(m_EditSize.GetWndText()), 1.F, 1296.F);
 	}
@@ -2249,6 +2280,12 @@ namespace DWFONTCHOOSE {
 			break;
 		case IDC_EDIT_FONT_SIZE:
 			OnCommandEdit(uCtrlID, uCode);
+			break;
+		case IDC_CHK_UNDERLINE:
+			OnCheckUnderline();
+			break;
+		case IDC_CHK_STRIKETHROUGH:
+			OnCheckStrikethrough();
 			break;
 		default:
 			return FALSE;
@@ -2375,6 +2412,8 @@ namespace DWFONTCHOOSE {
 		m_DynLayout.AddItem(IDC_STATIC_STRETCH, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
 		m_DynLayout.AddItem(IDC_COMBO_FONT_STYLE, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
 		m_DynLayout.AddItem(IDC_STATIC_STYLE, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
+		m_DynLayout.AddItem(IDC_CHK_UNDERLINE, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
+		m_DynLayout.AddItem(IDC_CHK_STRIKETHROUGH, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
 		m_DynLayout.AddItem(IDC_BTN_OK, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
 		m_DynLayout.AddItem(IDCANCEL, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
 		m_DynLayout.AddItem(IDC_BTN_PROPERTIES, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());

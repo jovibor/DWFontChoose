@@ -1,13 +1,15 @@
 ![](docs/img/DWFontChooseDialog.jpg)
 
-Preview all the fonts, with all available styles, installed in the system.  
-This resembles the standard Windows [ChooseFont]() GDI dialog, but works with the DirectWrite subsystem. All fonts sample rendering is done with the Direct2D.  
-On dialog exit a `std::optional<DWFONTINFO>` is returned. The `DWFONTINFO` struct possesses all the choosen font's information, similar to `LOGFONT`. This information can then be used to create text format object with the [`IDWriteFactory::CreateTextFormat`](https://learn.microsoft.com/en-us/windows/win32/api/dwrite/nf-dwrite-idwritefactory-createtextformat) Direct2D method.
+Enumerates all the fonts, with all available styles, installed in the system.  
+This resembles the standard Windows GDI [ChooseFont]() dialog, but works with the DirectWrite subsystem. All sample fonts rendering is done with the Direct2D.  
+The dialog can easily be added into any project as the C++ module. Written in pure Win32 API, no any other dependencies.  
+
+On dialog exit a `std::optional<DWFONTINFO>` is returned. The `DWFONTINFO` struct possesses all the choosen font's information, similar to `LOGFONT`. This information can then be used to create text format object with the [`IDWriteFactory::CreateTextFormat`](https://learn.microsoft.com/en-us/windows/win32/api/dwrite/nf-dwrite-idwritefactory-createtextformat) Direct2D method call.
 
 ## Usage
-1. Add all files fromt the **DWFontChoose** subdirectory into your project.
+1. Add all files from the **DWFontChoose** subdirectory into your project
 1. `import DWFontChoose;`
-1. Call the `DWFontChoose();` method.
+1. Call the `DWFontChoose();` global method
 ```cpp
 import DWFontChoose;
 

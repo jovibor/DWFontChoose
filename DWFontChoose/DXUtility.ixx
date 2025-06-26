@@ -338,12 +338,6 @@ export namespace DXUT {
 		return vecFontInfo;
 	}
 
-	struct DRAWCONTEXT {
-		ID2D1DeviceContext* pDeviceContext { };
-		IDWriteTextLayout1* pTextLayout { };
-		ID2D1Brush*         pBrushTextDef { }; //Default text brush.
-	};
-
 	class CTextEffect final : public IUnknown {
 	public:
 		CTextEffect() = default;
@@ -362,8 +356,10 @@ export namespace DXUT {
 
 	class CDWriteTextRenderer final : public IDWriteTextRenderer {
 	public:
-		void SetDrawContext(const DRAWCONTEXT& context) { m_context = context; }
-	public: //IDWriteTextRenderer overridden methods.
+		struct DRAWCONTEXT {
+			ID2D1DeviceContext* pDeviceContext { };
+			ID2D1Brush*         pBrushTextDef { }; //Default text brush.
+		};
 		auto AddRef() -> ULONG override { return 1UL; }
 		auto Release() -> ULONG override { return 1UL; }
 		auto QueryInterface(const IID& riid, void** ppvObject) -> HRESULT override {
@@ -413,18 +409,24 @@ export namespace DXUT {
 
 			return S_OK;
 		}
-		auto DrawInlineObject([[maybe_unused]] void* pContext, [[maybe_unused]] FLOAT flOriginX, [[maybe_unused]] FLOAT flOriginY,
+		auto DrawInlineObject([[maybe_unused]] void* pContext, [[maybe_unused]] FLOAT flBaseLineX, [[maybe_unused]] FLOAT flBaseLineY,
 			[[maybe_unused]] IDWriteInlineObject* pInlineObject, [[maybe_unused]] BOOL fIsSideways, [[maybe_unused]] BOOL fIsRightToLeft,
 			[[maybe_unused]] IUnknown* pEffect) -> HRESULT override {
 			return E_NOTIMPL;
 		}
-		auto DrawStrikethrough([[maybe_unused]] void* pContext, [[maybe_unused]] FLOAT flOriginX, [[maybe_unused]] FLOAT flOriginY,
+		auto DrawStrikethrough([[maybe_unused]] void* pContext, FLOAT flBaseLineX, FLOAT flBaseLineY,
 			[[maybe_unused]] const DWRITE_STRIKETHROUGH* pStrikeThrough, [[maybe_unused]] IUnknown* pEffect) -> HRESULT override {
-			return E_NOTIMPL;
+			const auto flTop = flBaseLineY + pStrikeThrough->offset;
+			m_context.pDeviceContext->DrawLine(D2D1::Point2F(flBaseLineX, flTop),
+				D2D1::Point2F(flBaseLineX + pStrikeThrough->width, flTop), m_context.pBrushTextDef, pStrikeThrough->thickness);
+			return S_OK;
 		}
-		auto DrawUnderline([[maybe_unused]] void* pContext, [[maybe_unused]] FLOAT flOriginX, [[maybe_unused]] FLOAT flOriginY,
-			[[maybe_unused]] const DWRITE_UNDERLINE* pUnderline, [[maybe_unused]] IUnknown* pEffect) -> HRESULT override {
-			return E_NOTIMPL;
+		auto DrawUnderline([[maybe_unused]] void* pContext, FLOAT flBaseLineX, FLOAT flBaseLineY,
+			const DWRITE_UNDERLINE* pUnderline, [[maybe_unused]] IUnknown* pEffect) -> HRESULT override {
+			const auto flTop = flBaseLineY + pUnderline->offset;
+			m_context.pDeviceContext->DrawLine(D2D1::Point2F(flBaseLineX, flTop),
+				D2D1::Point2F(flBaseLineX + pUnderline->width, flTop), m_context.pBrushTextDef, pUnderline->thickness);
+			return S_OK;
 		}
 		auto GetCurrentTransform([[maybe_unused]] void* pContext, [[maybe_unused]] DWRITE_MATRIX* pMatrix) -> HRESULT override {
 			m_context.pDeviceContext->GetTransform(reinterpret_cast<D2D1_MATRIX_3X2_F*>(pMatrix));
@@ -441,6 +443,7 @@ export namespace DXUT {
 			*pfIsDisabled = FALSE;
 			return S_OK;
 		}
+		void SetDrawContext(const DRAWCONTEXT& context) { m_context = context; }
 	private:
 		DRAWCONTEXT m_context;
 	};
