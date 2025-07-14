@@ -1373,6 +1373,7 @@ namespace DWFONTCHOOSE {
 		void OnKeyBackspace();
 		void OnKeyHome();
 		void OnKeyEnd();
+		auto OnLButtonDblClk(const MSG& msg) -> INT_PTR;
 		auto OnLButtonDown(const MSG& msg) -> INT_PTR;
 		auto OnLButtonUp(const MSG& msg) -> INT_PTR;
 		auto OnMouseMove(const MSG& msg) -> INT_PTR;
@@ -1474,6 +1475,7 @@ namespace DWFONTCHOOSE {
 		case WM_ERASEBKGND: return OnEraseBkgnd(msg);
 		case WM_GETDLGCODE: return OnGetDlgCode(msg);
 		case WM_KEYDOWN: return OnKeyDown(msg);
+		case WM_LBUTTONDBLCLK: return OnLButtonDblClk(msg);
 		case WM_LBUTTONDOWN: return OnLButtonDown(msg);
 		case WM_LBUTTONUP: return OnLButtonUp(msg);
 		case WM_MOUSEMOVE: return OnMouseMove(msg);
@@ -1845,11 +1847,39 @@ namespace DWFONTCHOOSE {
 		EnsureVisible(m_u32CaretPos = GetDataSize());
 	}
 
+	auto CDWFontChooseSampleText::OnLButtonDblClk(const MSG& msg)->INT_PTR
+	{
+		if (!m_pLayoutData) { return 0; }
+
+		const POINT pt { .x { ut::GetXLPARAM(msg.lParam) }, .y { ut::GetYLPARAM(msg.lParam) } };
+		BOOL fIsTrail;
+		BOOL fIsInside;
+		DWRITE_HIT_TEST_METRICS htm;
+		m_pLayoutData->HitTestPoint(DIPFromPixels(pt.x), DIPFromPixels(pt.y) + DIPFromPixels(m_Wnd.GetScrollPos(true)),
+			&fIsTrail, &fIsInside, &htm);
+
+		if (fIsInside) { //Select a clicked word.
+			std::wstring_view wsv(m_wstrData.data(), htm.textPosition); //View beforehead.
+
+			if (m_wstrData.at(htm.textPosition) == L' ') {
+				m_u32StartSel = static_cast<UINT32>(wsv.find_last_not_of(L' ') + 1);
+				m_u32SizeSel = static_cast<UINT32>(m_wstrData.find_first_not_of(L' ', htm.textPosition) - m_u32StartSel);
+			}
+			else {
+				m_u32StartSel = static_cast<UINT32>(wsv.find_last_of(L' ') + 1);
+				m_u32SizeSel = static_cast<UINT32>(m_wstrData.find_first_of(L' ', htm.textPosition) - m_u32StartSel);
+			}
+
+			m_u32CaretPos = m_u32StartSel + m_u32SizeSel;
+			m_Wnd.RedrawWindow();
+		}
+
+		return 0;
+	}
+
 	auto CDWFontChooseSampleText::OnLButtonDown([[maybe_unused]] const MSG& msg)->LRESULT
 	{
-		if (!m_pLayoutData) {
-			return 0;
-		}
+		if (!m_pLayoutData) { return 0; }
 
 		const POINT pt { .x { ut::GetXLPARAM(msg.lParam) }, .y { ut::GetYLPARAM(msg.lParam) } };
 		BOOL fIsTrail;
@@ -1877,9 +1907,7 @@ namespace DWFONTCHOOSE {
 
 	auto CDWFontChooseSampleText::OnMouseMove(const MSG& msg)->LRESULT
 	{
-		if (!m_fLMDown || !m_pLayoutData) {
-			return 0;
-		}
+		if (!m_fLMDown || !m_pLayoutData) { return 0; }
 
 		const POINT pt { .x { ut::GetXLPARAM(msg.lParam) }, .y { ut::GetYLPARAM(msg.lParam) } };
 		BOOL fIsTrail;
