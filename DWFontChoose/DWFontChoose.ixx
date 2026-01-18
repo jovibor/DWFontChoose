@@ -146,7 +146,7 @@ namespace DWFONTCHOOSE {
 		class CDynLayout final {
 		public:
 			//Ratio settings, for how much to move or resize an item when parent is resized.
-			struct ItemRatio { float m_flXRatio { }; float m_flYRatio { }; };
+			struct ItemRatio { float flXRatio { }; float flYRatio { }; };
 			struct MoveRatio : public ItemRatio { }; //To differentiate move from size in the AddItem.
 			struct SizeRatio : public ItemRatio { };
 
@@ -160,30 +160,30 @@ namespace DWFONTCHOOSE {
 			[[nodiscard]] static MoveRatio MoveNone() { return { }; }
 			[[nodiscard]] static MoveRatio MoveHorz(int iXRatio)
 			{
-				iXRatio = std::clamp(iXRatio, 0, 100); return { { .m_flXRatio { iXRatio / 100.F } } };
+				iXRatio = std::clamp(iXRatio, 0, 100); return { { .flXRatio { iXRatio / 100.F } } };
 			}
 			[[nodiscard]] static MoveRatio MoveVert(int iYRatio)
 			{
-				iYRatio = std::clamp(iYRatio, 0, 100); return { { .m_flYRatio { iYRatio / 100.F } } };
+				iYRatio = std::clamp(iYRatio, 0, 100); return { { .flYRatio { iYRatio / 100.F } } };
 			}
 			[[nodiscard]] static MoveRatio MoveHorzAndVert(int iXRatio, int iYRatio)
 			{
 				iXRatio = std::clamp(iXRatio, 0, 100); iYRatio = std::clamp(iYRatio, 0, 100);
-				return { { .m_flXRatio { iXRatio / 100.F }, .m_flYRatio { iYRatio / 100.F } } };
+				return { { .flXRatio { iXRatio / 100.F }, .flYRatio { iYRatio / 100.F } } };
 			}
 			[[nodiscard]] static SizeRatio SizeNone() { return { }; }
 			[[nodiscard]] static SizeRatio SizeHorz(int iXRatio)
 			{
-				iXRatio = std::clamp(iXRatio, 0, 100); return { { .m_flXRatio { iXRatio / 100.F } } };
+				iXRatio = std::clamp(iXRatio, 0, 100); return { { .flXRatio { iXRatio / 100.F } } };
 			}
 			[[nodiscard]] static SizeRatio SizeVert(int iYRatio)
 			{
-				iYRatio = std::clamp(iYRatio, 0, 100); return { { .m_flYRatio { iYRatio / 100.F } } };
+				iYRatio = std::clamp(iYRatio, 0, 100); return { { .flYRatio { iYRatio / 100.F } } };
 			}
 			[[nodiscard]] static SizeRatio SizeHorzAndVert(int iXRatio, int iYRatio)
 			{
 				iXRatio = std::clamp(iXRatio, 0, 100); iYRatio = std::clamp(iYRatio, 0, 100);
-				return { { .m_flXRatio { iXRatio / 100.F }, .m_flYRatio { iYRatio / 100.F } } };
+				return { { .flXRatio { iXRatio / 100.F }, .flYRatio { iYRatio / 100.F } } };
 			}
 		private:
 			struct ItemData {
@@ -232,12 +232,12 @@ namespace DWFONTCHOOSE {
 
 			const auto hDWP = ::BeginDeferWindowPos(static_cast<int>(m_vecItems.size()));
 			for (const auto& [hWnd, rc, move, size] : m_vecItems) {
-				const auto iNewLeft = static_cast<int>(rc.left + (iDeltaX * move.m_flXRatio));
-				const auto iNewTop = static_cast<int>(rc.top + (iDeltaY * move.m_flYRatio));
+				const auto iNewLeft = static_cast<int>(rc.left + (iDeltaX * move.flXRatio));
+				const auto iNewTop = static_cast<int>(rc.top + (iDeltaY * move.flYRatio));
 				const auto iOrigWidth = rc.right - rc.left;
 				const auto iOrigHeight = rc.bottom - rc.top;
-				const auto iNewWidth = static_cast<int>(iOrigWidth + (iDeltaX * size.m_flXRatio));
-				const auto iNewHeight = static_cast<int>(iOrigHeight + (iDeltaY * size.m_flYRatio));
+				const auto iNewWidth = static_cast<int>(iOrigWidth + (iDeltaX * size.flXRatio));
+				const auto iNewHeight = static_cast<int>(iOrigHeight + (iDeltaY * size.flYRatio));
 				::DeferWindowPos(hDWP, hWnd, nullptr, iNewLeft, iNewTop, iNewWidth, iNewHeight, SWP_NOZORDER | SWP_NOACTIVATE);
 			}
 			::EndDeferWindowPos(hDWP);
@@ -387,7 +387,7 @@ namespace DWFONTCHOOSE {
 			auto SetTextColor(COLORREF clr)const -> COLORREF { return ::SetTextColor(m_hDC, clr); }
 			auto SetViewportOrg(int iX, int iY)const -> POINT { POINT pt; ::SetViewportOrgEx(m_hDC, iX, iY, &pt); return pt; }
 			auto SelectObject(HGDIOBJ hObj)const -> HGDIOBJ { return ::SelectObject(m_hDC, hObj); }
-			int StartDocW(const DOCINFO* pDI)const { return ::StartDocW(m_hDC, pDI); }
+			int StartDocW(const DOCINFOW* pDI)const { return ::StartDocW(m_hDC, pDI); }
 			int StartPage()const { return ::StartPage(m_hDC); }
 			void TextOutW(int iX, int iY, LPCWSTR pwszText, int iSize)const { ::TextOutW(m_hDC, iX, iY, pwszText, iSize); }
 			void TextOutW(int iX, int iY, std::wstring_view wsv)const
@@ -763,8 +763,8 @@ namespace DWFONTCHOOSE {
 		struct ITEMSINVIEW {
 			UINT32 u32FirstItem { }; //Index in the vector.
 			UINT32 u32Total { };
-			float flFirstItemCoordX { };
-			float flFirstItemCoordY { };
+			float flFirstItemCoordXDIP { };
+			float flFirstItemCoordYDIP { };
 		};
 		template <typename T> requires std::is_arithmetic_v<T>
 		[[nodiscard]] auto DIPFromPixels(T t)const -> float;
@@ -773,7 +773,7 @@ namespace DWFONTCHOOSE {
 		[[nodiscard]] auto GetItemsInView()const -> ITEMSINVIEW;
 		[[nodiscard]] auto GetItemsTotal()const -> UINT32;
 		[[nodiscard]] auto GetLineHeightPx()const -> int;
-		[[nodiscard]] auto GetLineSpacing()const -> float;
+		[[nodiscard]] auto GetLineSpacingDIP()const -> float;
 		[[nodiscard]] auto GetScrollPosPx()const -> int;
 		void ItemHighlight(UINT32 u32Item);
 		void ItemSelect(UINT32 u32Item, bool fChangeHighlight);
@@ -874,7 +874,7 @@ namespace DWFONTCHOOSE {
 		//Text.
 		m_pDWTextFormatMain = DWCreateTextFormat(m_tfi);
 		m_pDWTextFormatMain->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
-		m_pDWTextFormatMain->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, GetLineSpacing(), m_flBaseLineDIP);
+		m_pDWTextFormatMain->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, GetLineSpacingDIP(), m_flBaseLineDIP);
 	}
 
 	auto CDWFontChooseEnum::ProcessMsg(const MSG& msg)->LRESULT
@@ -987,8 +987,8 @@ namespace DWFONTCHOOSE {
 		}
 
 		return { .u32FirstItem { u32FirstItem }, .u32Total { u32ItemsInView },
-			.flFirstItemCoordX { DIPFromPixels(rcClient.Width() - (rcClient.Width() / 3)) },
-			.flFirstItemCoordY { DIPFromPixels(iScrollYPx % iLineHeightPx) } };
+			.flFirstItemCoordXDIP { DIPFromPixels(rcClient.Width() - (rcClient.Width() / 3)) },
+			.flFirstItemCoordYDIP { DIPFromPixels(iScrollYPx % iLineHeightPx) } };
 	}
 
 	auto CDWFontChooseEnum::GetItemsTotal()const->UINT32
@@ -1012,10 +1012,10 @@ namespace DWFONTCHOOSE {
 	}
 
 	auto CDWFontChooseEnum::GetLineHeightPx()const->int {
-		return PixelsFromDIP(GetLineSpacing());
+		return PixelsFromDIP(GetLineSpacingDIP());
 	}
 
-	auto CDWFontChooseEnum::GetLineSpacing()const->float {
+	auto CDWFontChooseEnum::GetLineSpacingDIP()const->float {
 		return m_flLineSpacingDIP;
 	}
 
@@ -1196,15 +1196,15 @@ namespace DWFONTCHOOSE {
 		const auto iScrollYDIP = DIPFromPixels(GetScrollPosPx());
 		const auto rcClient = m_Wnd.GetClientRect();
 		const auto liv = GetItemsInView();
-		const auto flHighlightedBkY = (m_u32ItemHighlighted * GetLineSpacing()) - iScrollYDIP;
+		const auto flHighlightedBkY = (m_u32ItemHighlighted * GetLineSpacingDIP()) - iScrollYDIP;
 		const auto rcHighlightedBk = D2D1::RectF(0, flHighlightedBkY, DIPFromPixels(rcClient.Width()),
-			flHighlightedBkY + GetLineSpacing());
+			flHighlightedBkY + GetLineSpacingDIP());
 		m_pD2DDeviceContext->DrawRectangle(rcHighlightedBk, m_pD2DBrushGray, 1); //Highlighted item.
-		const auto flSelectedBkY = (m_u32ItemSelected * GetLineSpacing()) - iScrollYDIP;
+		const auto flSelectedBkY = (m_u32ItemSelected * GetLineSpacingDIP()) - iScrollYDIP;
 		const auto rcSelectedBk = D2D1::RectF(0, flSelectedBkY, DIPFromPixels(rcClient.Width()),
-			flSelectedBkY + GetLineSpacing());
+			flSelectedBkY + GetLineSpacingDIP());
 		m_pD2DDeviceContext->FillRectangle(rcSelectedBk, m_pD2DBrushLightGray); //Selected item.
-		m_pD2DDeviceContext->DrawTextLayout(D2D1::Point2F(10.F, -iScrollYDIP), m_pLayoutData, m_pD2DBrushBlack);
+		m_pD2DDeviceContext->DrawTextLayout(D2D1::Point2F(DIPFromPixels(10.F), -iScrollYDIP), m_pLayoutData, m_pD2DBrushBlack);
 
 		for (auto uLine = 0U; uLine < liv.u32Total; ++uLine) {
 			const auto uCurrLine = liv.u32FirstItem + uLine;
@@ -1231,10 +1231,10 @@ namespace DWFONTCHOOSE {
 				.flSizeDIP { m_flSizeFontMainDIP * 1.5F } };
 			DXUT::comptr pFormatSample = DXUT::DWCreateTextFormat(tfiSample);
 			pFormatSample->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
-			pFormatSample->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, GetLineSpacing(), m_flBaseLineDIP);
+			pFormatSample->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, GetLineSpacingDIP(), m_flBaseLineDIP);
 			const auto pLayoutSample = DXUT::DWCreateTextLayout(L"Sample", pFormatSample, 0, 0);
-			const auto flY = (static_cast<float>(uLine) * GetLineSpacing()) - liv.flFirstItemCoordY;
-			m_pD2DDeviceContext->DrawTextLayout(D2D1::Point2F(liv.flFirstItemCoordX, flY), pLayoutSample, m_pD2DBrushBlack);
+			const auto flY = (static_cast<float>(uLine) * GetLineSpacingDIP()) - liv.flFirstItemCoordYDIP;
+			m_pD2DDeviceContext->DrawTextLayout(D2D1::Point2F(liv.flFirstItemCoordXDIP, flY), pLayoutSample, m_pD2DBrushBlack);
 		}
 
 		m_pD2DDeviceContext->EndDraw();
@@ -1589,7 +1589,7 @@ namespace DWFONTCHOOSE {
 		m_pLayoutData->GetLineMetrics(nullptr, 0, &u32Lines);
 		const auto lm = std::make_unique_for_overwrite<DWRITE_LINE_METRICS[]>(u32Lines);
 		m_pLayoutData->GetLineMetrics(lm.get(), u32Lines, &u32Lines);
-		m_flLineHeightDIP = *&lm[0].height;
+		m_flLineHeightDIP = lm[0].height;
 
 		RecalcScroll();
 		m_Wnd.RedrawWindow();
@@ -1641,7 +1641,7 @@ namespace DWFONTCHOOSE {
 	}
 
 	auto CDWFontChooseSampleText::GetLineHeightPx()const->UINT32 {
-		return PixelsFromDIP(m_flLineHeightDIP);
+		return PixelsFromDIP(GetLineHeightDIP());
 	}
 
 	auto CDWFontChooseSampleText::OnChar(const MSG& msg)->LRESULT

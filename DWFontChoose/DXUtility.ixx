@@ -5,7 +5,6 @@ module;
 #include <dxgi1_2.h>
 #include <dwrite_3.h>
 #include <cassert>
-#include <cmath>
 #include <string>
 #include <vector>
 export module DXUtility;
@@ -52,18 +51,18 @@ export namespace DXUT {
 		TCom* m_pTCom { };
 	};
 
-	[[nodiscard]] inline auto D2DGetFactory() -> ID2D1Factory1* {
+	[[nodiscard]] auto D2DGetFactory() -> ID2D1Factory1* {
 		static const comptr pD2DFactory1 = []() {
 			ID2D1Factory1* pFactory1;
 			::D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory1),
 				reinterpret_cast<void**>(&pFactory1));
-			assert(pFactory1);
+			assert(pFactory1 != nullptr);
 			return pFactory1;
-			} ();
+			}();
 		return pD2DFactory1;
 	}
 
-	[[nodiscard]] inline auto D3D11GetDevice() -> ID3D11Device* {
+	[[nodiscard]] auto D3D11GetDevice() -> ID3D11Device* {
 		static const comptr pD3D11Device = []() {
 			UINT uDeviceFlags = D3D11_CREATE_DEVICE_SINGLETHREADED | D3D11_CREATE_DEVICE_BGRA_SUPPORT;
 		#ifdef _DEBUG
@@ -76,23 +75,23 @@ export namespace DXUT {
 			ID3D11Device* pDevice;
 			::D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, uDeviceFlags, arrFL, std::size(arrFL),
 				D3D11_SDK_VERSION, &pDevice, nullptr, nullptr);
-			assert(pDevice);
-			return pDevice; }
-		();
+			assert(pDevice != nullptr);
+			return pDevice;
+			}();
 		return pD3D11Device;
 	}
 
-	[[nodiscard]] inline auto DXGIGetDevice() -> IDXGIDevice1* {
+	[[nodiscard]] auto DXGIGetDevice() -> IDXGIDevice1* {
 		static const comptr pDXGIDevice1 = []() {
 			IDXGIDevice1* pDevice1;
 			D3D11GetDevice()->QueryInterface(&pDevice1);
-			assert(pDevice1);
+			assert(pDevice1 != nullptr);
 			return pDevice1;
 			}();
 		return pDXGIDevice1;
 	}
 
-	[[nodiscard]] inline auto DXGICreateSwapChainForHWND(HWND hWnd) -> IDXGISwapChain1* {
+	[[nodiscard]] auto DXGICreateSwapChainForHWND(HWND hWnd) -> IDXGISwapChain1* {
 		assert(::IsWindow(hWnd));
 		const DXGI_SWAP_CHAIN_DESC1 scd { .Width { 0 }, .Height { 0 }, .Format { DXGI_FORMAT_B8G8R8A8_UNORM },
 			.Stereo { false }, .SampleDesc { .Count { 1 }, .Quality { 0 } },
@@ -100,8 +99,8 @@ export namespace DXUT {
 			.SwapEffect { DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL }, .AlphaMode { DXGI_ALPHA_MODE_UNSPECIFIED }, .Flags { 0 } };
 		comptr<IDXGIAdapter> pDXGIAdapter;
 		DXGIGetDevice()->GetAdapter(pDXGIAdapter);
-		assert(pDXGIAdapter);
-		if (!pDXGIAdapter) { return { }; }
+		assert(pDXGIAdapter != nullptr);
+		if (pDXGIAdapter == nullptr) { return { }; }
 
 		comptr<IDXGIFactory2> pDXGIFactory2;
 		pDXGIAdapter->GetParent(__uuidof(**(pDXGIFactory2.get_addr())), pDXGIFactory2);
@@ -110,32 +109,32 @@ export namespace DXUT {
 
 		IDXGISwapChain1* pDXGISwapChain1;
 		pDXGIFactory2->CreateSwapChainForHwnd(D3D11GetDevice(), hWnd, &scd, nullptr, nullptr, &pDXGISwapChain1);
-		assert(pDXGISwapChain1);
+		assert(pDXGISwapChain1 != nullptr);
 		return pDXGISwapChain1;
 	}
 
-	[[nodiscard]] inline auto D2DCreateDevice() -> ID2D1Device* {
+	[[nodiscard]] auto D2DCreateDevice() -> ID2D1Device* {
 		ID2D1Device* pD2DDevice;
 		D2DGetFactory()->CreateDevice(DXGIGetDevice(), &pD2DDevice);
-		assert(pD2DDevice);
+		assert(pD2DDevice != nullptr);
 		return pD2DDevice;
 	}
 
-	[[nodiscard]] inline auto D2DCreateDeviceContext(ID2D1Device* pD2DDevice) -> ID2D1DeviceContext* {
+	[[nodiscard]] auto D2DCreateDeviceContext(ID2D1Device* pD2DDevice) -> ID2D1DeviceContext* {
 		assert(pD2DDevice);
 		ID2D1DeviceContext* pD2DDeviceContext;
 		pD2DDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &pD2DDeviceContext);
-		assert(pD2DDeviceContext);
+		assert(pD2DDeviceContext != nullptr);
 		return pD2DDeviceContext;
 	}
 
-	[[nodiscard]] inline auto D2DCreateBitmapFromDxgiSurface(ID2D1DeviceContext* pD2DDC, IDXGISwapChain1* pDXGISwapChain) -> ID2D1Bitmap1* {
-		assert(pD2DDC);
-		assert(pDXGISwapChain);
+	[[nodiscard]] auto D2DCreateBitmapFromDxgiSurface(ID2D1DeviceContext* pD2DDC, IDXGISwapChain1* pDXGISwapChain) -> ID2D1Bitmap1* {
+		assert(pD2DDC != nullptr);
+		assert(pDXGISwapChain != nullptr);
 		comptr<IDXGISurface> pDXGISurface;
 		pDXGISwapChain->GetBuffer(0, __uuidof(**(pDXGISurface.get_addr())), pDXGISurface);
-		assert(pDXGISurface);
-		if (!pDXGISurface) { return{ }; }
+		assert(pDXGISurface != nullptr);
+		if (pDXGISurface == nullptr) { return { }; }
 
 		ID2D1Bitmap1* pD2DBitmap1;
 		const auto bp = D2D1::BitmapProperties1(D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
@@ -144,14 +143,14 @@ export namespace DXUT {
 		return pD2DBitmap1;
 	}
 
-	[[nodiscard]] inline auto DWGetFactory() -> IDWriteFactory3* {
+	[[nodiscard]] auto DWGetFactory() -> IDWriteFactory3* {
 		static const comptr pD2DWriteFactory = []() {
 			IDWriteFactory3* pWriteFactory;
 			::DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory3),
 				reinterpret_cast<IUnknown**>(&pWriteFactory));
-			assert(pWriteFactory);
+			assert(pWriteFactory != nullptr);
 			return pWriteFactory;
-			} ();
+			}();
 		return pD2DWriteFactory;
 	}
 
@@ -164,40 +163,40 @@ export namespace DXUT {
 		float               flSizeDIP { }; //Font size in Device Independent Pixels (not points).
 	};
 
-	[[nodiscard]] inline auto DWCreateTextFormat(const DWFONTINFO& fi) -> IDWriteTextFormat1* {
+	[[nodiscard]] auto DWCreateTextFormat(const DWFONTINFO& fi) -> IDWriteTextFormat1* {
 		comptr<IDWriteTextFormat> pTextFormat;
 		DWGetFactory()->CreateTextFormat(fi.wstrFamilyName.data(), nullptr, fi.eWeight, fi.eStyle, fi.eStretch,
 			fi.flSizeDIP, fi.wstrLocale.data(), pTextFormat);
-		assert(pTextFormat);
-		if (!pTextFormat) { return { }; }
+		assert(pTextFormat != nullptr);
+		if (pTextFormat == nullptr) { return { }; }
 
 		IDWriteTextFormat1* pTextFormat1;
 		pTextFormat->QueryInterface(&pTextFormat1);
 		return pTextFormat1;
 	}
 
-	[[nodiscard]] inline auto DWCreateTextLayout(std::wstring_view wsv, IDWriteTextFormat1* pTextFormat, float flWidthMax,
+	[[nodiscard]] auto DWCreateTextLayout(std::wstring_view wsv, IDWriteTextFormat1* pTextFormat, float flWidthMax,
 		float flHeightMax) -> IDWriteTextLayout1* {
 		assert(pTextFormat);
 		comptr<IDWriteTextLayout> pTextLayout;
 		DWGetFactory()->CreateTextLayout(wsv.data(), static_cast<UINT32>(wsv.size()), pTextFormat, flWidthMax,
 			flHeightMax, pTextLayout);
-		assert(pTextLayout);
-		if (!pTextLayout) { return { }; }
+		assert(pTextLayout != nullptr);
+		if (pTextLayout == nullptr) { return { }; }
 
 		IDWriteTextLayout1* pTextLayout1;
 		pTextLayout->QueryInterface(&pTextLayout1);
 		return pTextLayout1;
 	}
 
-	[[nodiscard]] inline auto DWCreateGDITextLayout(std::wstring_view wsv, IDWriteTextFormat1* pTextFormat, float flWidthMax,
+	[[nodiscard]] auto DWCreateGDITextLayout(std::wstring_view wsv, IDWriteTextFormat1* pTextFormat, float flWidthMax,
 		float flHeightMax) -> IDWriteTextLayout1* {
-		assert(pTextFormat);
+		assert(pTextFormat != nullptr);
 		comptr<IDWriteTextLayout> pTextLayout;
 		DWGetFactory()->CreateGdiCompatibleTextLayout(wsv.data(), static_cast<UINT32>(wsv.size()), pTextFormat, flWidthMax,
 			flHeightMax, 1.F, nullptr, FALSE, pTextLayout);
-		assert(pTextLayout);
-		if (!pTextLayout) { return { }; }
+		assert(pTextLayout != nullptr);
+		if (pTextLayout == nullptr) { return { }; }
 
 		IDWriteTextLayout1* pTextLayout1;
 		pTextLayout->QueryInterface(&pTextLayout1);
@@ -225,7 +224,7 @@ export namespace DXUT {
 		std::vector<DWFONTFACEINFO> vecFontFaceInfo;
 	};
 
-	[[nodiscard]] inline auto DWGetSystemFonts(const wchar_t* pwszLocale = L"en-US") -> std::vector<DWFONTFAMILYINFO> {
+	[[nodiscard]] auto DWGetSystemFonts(const wchar_t* pwszLocale = L"en-US") -> std::vector<DWFONTFAMILYINFO> {
 		const auto lmbGetWstrLocale = [=](IDWriteLocalizedStrings* pLocStrings)->std::wstring {
 			if (pLocStrings == nullptr) {
 				return { };
