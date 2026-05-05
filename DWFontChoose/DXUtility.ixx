@@ -1,3 +1,8 @@
+/****************************************************************
+* Copyright © 2025-present Jovibor https://github.com/jovibor/  *
+* Windows DirectX helpful utilities.                            *
+* This software is available under "The MIT License"            *
+****************************************************************/
 module;
 #include <d2d1.h>
 #include <d2d1_1.h>

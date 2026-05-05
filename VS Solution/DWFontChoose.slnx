@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="DWFontChoose.vcxproj" Id="4a261259-2624-41a7-bf7e-cae2b75e057d" />
+</Solution>

@@ -1,3 +1,9 @@
+/********************************************************************
+* Copyright © 2025-present Jovibor https://github.com/jovibor/      *
+* DirectWrite Font Chooser                                          *
+* Official git repository: https://github.com/jovibor/DWFontChoose/ *
+* This software is available under "The MIT License"                *
+********************************************************************/
 module;
 #include <SDKDDKVer.h>
 #include "DWFontChooseRes.h"
@@ -265,18 +271,15 @@ namespace DWFONTCHOOSE {
 			CRect() : RECT { } { }
 			CRect(int iLeft, int iTop, int iRight, int iBottom) : RECT { .left { iLeft }, .top { iTop },
 				.right { iRight }, .bottom { iBottom } }
-			{
-			}
+			{ }
 			CRect(RECT rc) { ::CopyRect(this, &rc); }
 			CRect(LPCRECT pRC) { ::CopyRect(this, pRC); }
 			CRect(POINT pt, SIZE size) : RECT { .left { pt.x }, .top { pt.y }, .right { pt.x + size.cx },
 				.bottom { pt.y + size.cy } }
-			{
-			}
+			{ }
 			CRect(POINT topLeft, POINT botRight) : RECT { .left { topLeft.x }, .top { topLeft.y },
 				.right { botRight.x }, .bottom { botRight.y } }
-			{
-			}
+			{ }
 			~CRect() = default;
 			operator LPRECT() { return this; }
 			operator LPCRECT()const { return this; }
