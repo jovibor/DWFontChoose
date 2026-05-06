@@ -45,6 +45,9 @@
 #define IDC_BTN_PROPERTIES              9041
 #define IDC_CHK_UNDERLINE               9042
 #define IDC_CHK_STRIKETHROUGH           9043
+#define IDC_STATIC_TOTALFAMILIES        9044
+#define IDC_STATIC_TOTALFACES           9045
+#define IDC_COMBO_FONT_FAMILY           9046
 
 // Next default values for new objects
 // 
@@ -52,7 +55,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        9043
 #define _APS_NEXT_COMMAND_VALUE         40001
-#define _APS_NEXT_CONTROL_VALUE         9043
+#define _APS_NEXT_CONTROL_VALUE         9047
 #define _APS_NEXT_SYMED_VALUE           9043
 #endif
 #endif

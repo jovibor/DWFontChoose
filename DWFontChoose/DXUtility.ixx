@@ -10,6 +10,7 @@ module;
 #include <dxgi1_2.h>
 #include <dwrite_3.h>
 #include <cassert>
+#include <format>
 #include <string>
 #include <vector>
 export module DXUtility;
@@ -227,6 +228,7 @@ export namespace DXUT {
 		std::wstring                wstrFamilyName; //DWRITE_FONT_PROPERTY_ID_WEIGHT_STRETCH_STYLE_FAMILY_NAME
 		std::wstring                wstrLocale;
 		std::vector<DWFONTFACEINFO> vecFontFaceInfo;
+		bool                        fIsMonospaced { };
 	};
 
 	[[nodiscard]] auto DWGetSystemFonts(const wchar_t* pwszLocale = L"en-US") -> std::vector<DWFONTFAMILYINFO> {
@@ -271,7 +273,7 @@ export namespace DXUT {
 		comptr<IDWriteFontSet> pSysFontSet;
 		DWGetFactory()->GetSystemFontSet(pSysFontSet);
 		assert(pSysFontSet);
-		if (!pSysFontSet) { return{ }; }
+		if (!pSysFontSet) { return { }; }
 
 		comptr<IDWriteStringList> pStringsFamilyName;
 		pSysFontSet->GetPropertyValues(DWRITE_FONT_PROPERTY_ID_WEIGHT_STRETCH_STYLE_FAMILY_NAME, pwszLocale,
@@ -282,7 +284,6 @@ export namespace DXUT {
 		const auto iCountFontFamilies = pStringsFamilyName->GetCount(); //How many unique Font Family Names.
 		std::vector<DWFONTFAMILYINFO> vecFontInfo;
 		vecFontInfo.reserve(iCountFontFamilies);
-
 		for (auto iFontFamily = 0U; iFontFamily < iCountFontFamilies; ++iFontFamily) {
 			wchar_t buffFamilyName[64];
 			pStringsFamilyName->GetString(iFontFamily, buffFamilyName, std::size(buffFamilyName));
@@ -293,6 +294,19 @@ export namespace DXUT {
 			const auto iCountFontFaces = pFamilyNameSet->GetFontCount(); //How many fonts (Font Face) within this Family Name.
 			std::vector<DWFONTFACEINFO> vecFontFaceInfo;
 			vecFontFaceInfo.reserve(iCountFontFaces);
+
+			bool fIsMonospaced { false };
+			if (iCountFontFaces > 0) {
+				comptr<IDWriteFontFaceReference> pFontFaceReference;
+				pFamilyNameSet->GetFontFaceReference(0, pFontFaceReference);
+				if (pFontFaceReference != nullptr) {
+					comptr<IDWriteFontFace3> pFontFace3;
+					pFontFaceReference->CreateFontFace(pFontFace3);
+					if (pFontFace3 != nullptr) {
+						fIsMonospaced = pFontFace3->IsMonospacedFont();
+					}
+				}
+			}
 
 			for (auto iFontFace = 0U; iFontFace < iCountFontFaces; ++iFontFace) {
 				BOOL f;
@@ -336,7 +350,7 @@ export namespace DXUT {
 			}
 
 			vecFontInfo.emplace_back(DWFONTFAMILYINFO { .wstrFamilyName { buffFamilyName }, .wstrLocale { pwszLocale },
-				.vecFontFaceInfo { std::move(vecFontFaceInfo) } });
+				.vecFontFaceInfo { std::move(vecFontFaceInfo) }, .fIsMonospaced { fIsMonospaced } });
 		}
 
 		return vecFontInfo;

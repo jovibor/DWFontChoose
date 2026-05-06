@@ -9,9 +9,7 @@ module;
 #include "DWFontChooseRes.h"
 #include <Windows.h>
 #include <commctrl.h>
-#include <d2d1.h>
 #include <d2d1_1.h>
-#include <d3d11_1.h>
 #include <dxgi1_2.h>
 #include <dwrite_3.h>
 #include <algorithm>
@@ -20,6 +18,7 @@ module;
 #include <format>
 #include <optional>
 #include <source_location>
+#include <span>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -28,13 +27,17 @@ export module DWFontChoose;
 import DXUtility;
 
 #pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
-#pragma comment(lib, "msimg32")
 #pragma comment(lib, "Comctl32")
 
+export enum class EDWFontFamily : std::uint8_t {
+	FAMILY_ALL = 0x1, FAMILY_MONOSPACED, FAMILY_NONMONOSPACED
+};
+
 export struct DWFONTCHOOSEINFO {
-	std::wstring wstrLocale { L"en-US" };
-	HINSTANCE hInstRes { };
-	HWND hWndParent { };
+	std::wstring wstrLocale { L"en-US" }; //Semicolon delimited language names in preferred order.
+	HINSTANCE hInstRes { };               //HINSTANCE where all dialog resources reside.
+	HWND hWndParent { };                  //Parent window.
+	EDWFontFamily eFontFamily { EDWFontFamily::FAMILY_ALL }; //Which font families to display.
 };
 
 namespace DWFONTCHOOSE {
@@ -151,50 +154,53 @@ namespace DWFONTCHOOSE {
 
 		class CDynLayout final {
 		public:
-			//Ratio settings, for how much to move or resize an item when parent is resized.
-			struct ItemRatio { float flXRatio { }; float flYRatio { }; };
+			//Ratio settings, for how much to move or to resize child item when parent is resized.
+			struct ItemRatio {
+				[[nodiscard]] bool IsNull()const { return flXRatio == 0.F && flYRatio == 0.F; };
+				float flXRatio { }; float flYRatio { };
+			};
 			struct MoveRatio : public ItemRatio { }; //To differentiate move from size in the AddItem.
 			struct SizeRatio : public ItemRatio { };
 
+			CDynLayout() = default;
+			CDynLayout(HWND hWndHost) : m_hWndHost(hWndHost) { }
 			void AddItem(int iIDItem, MoveRatio move, SizeRatio size);
+			void AddItem(HWND hWndItem, MoveRatio move, SizeRatio size);
 			void Enable(bool fTrack);
-			void OnSize(int iWidth, int iHeight)const; //Should be hooked into the host window WM_SIZE handler.
+			bool LoadFromResource(HINSTANCE hInstRes, const wchar_t* pwszNameResource);
+			bool LoadFromResource(HINSTANCE hInstRes, UINT uNameResource);
+			void OnSize(int iWidth, int iHeight)const; //Should be hooked into the host window's WM_SIZE handler.
 			void RemoveAll() { m_vecItems.clear(); }
 			void SetHost(HWND hWnd) { assert(hWnd != nullptr); m_hWndHost = hWnd; }
 
 			//Static helper methods to use in the AddItem.
 			[[nodiscard]] static MoveRatio MoveNone() { return { }; }
-			[[nodiscard]] static MoveRatio MoveHorz(int iXRatio)
-			{
-				iXRatio = std::clamp(iXRatio, 0, 100); return { { .flXRatio { iXRatio / 100.F } } };
+			[[nodiscard]] static MoveRatio MoveHorz(int iXRatio) {
+				return { { .flXRatio { ToFlRatio(iXRatio) } } };
 			}
-			[[nodiscard]] static MoveRatio MoveVert(int iYRatio)
-			{
-				iYRatio = std::clamp(iYRatio, 0, 100); return { { .flYRatio { iYRatio / 100.F } } };
+			[[nodiscard]] static MoveRatio MoveVert(int iYRatio) {
+				return { { .flYRatio { ToFlRatio(iYRatio) } } };
 			}
-			[[nodiscard]] static MoveRatio MoveHorzAndVert(int iXRatio, int iYRatio)
-			{
-				iXRatio = std::clamp(iXRatio, 0, 100); iYRatio = std::clamp(iYRatio, 0, 100);
-				return { { .flXRatio { iXRatio / 100.F }, .flYRatio { iYRatio / 100.F } } };
+			[[nodiscard]] static MoveRatio MoveHorzAndVert(int iXRatio, int iYRatio) {
+				return { { .flXRatio { ToFlRatio(iXRatio) }, .flYRatio { ToFlRatio(iYRatio) } } };
 			}
 			[[nodiscard]] static SizeRatio SizeNone() { return { }; }
-			[[nodiscard]] static SizeRatio SizeHorz(int iXRatio)
-			{
-				iXRatio = std::clamp(iXRatio, 0, 100); return { { .flXRatio { iXRatio / 100.F } } };
+			[[nodiscard]] static SizeRatio SizeHorz(int iXRatio) {
+				return { { .flXRatio { ToFlRatio(iXRatio) } } };
 			}
-			[[nodiscard]] static SizeRatio SizeVert(int iYRatio)
-			{
-				iYRatio = std::clamp(iYRatio, 0, 100); return { { .flYRatio { iYRatio / 100.F } } };
+			[[nodiscard]] static SizeRatio SizeVert(int iYRatio) {
+				return { { .flYRatio { ToFlRatio(iYRatio) } } };
 			}
-			[[nodiscard]] static SizeRatio SizeHorzAndVert(int iXRatio, int iYRatio)
-			{
-				iXRatio = std::clamp(iXRatio, 0, 100); iYRatio = std::clamp(iYRatio, 0, 100);
-				return { { .flXRatio { iXRatio / 100.F }, .flYRatio { iYRatio / 100.F } } };
+			[[nodiscard]] static SizeRatio SizeHorzAndVert(int iXRatio, int iYRatio) {
+				return { { .flXRatio { ToFlRatio(iXRatio) }, .flYRatio { ToFlRatio(iYRatio) } } };
 			}
 		private:
+			[[nodiscard]] static auto ToFlRatio(int iRatio) -> float {
+				return std::clamp(iRatio, 0, 100) / 100.F;
+			}
 			struct ItemData {
 				HWND hWnd { };   //Item window.
-				RECT rcOrig { }; //Item original client area rect after EnableTrack(true).
+				RECT rcOrig { }; //Item original window rect after EnableTrack(true).
 				MoveRatio move;  //How much to move the item.
 				SizeRatio size;  //How much to resize the item.
 			};
@@ -204,17 +210,22 @@ namespace DWFONTCHOOSE {
 			bool m_fTrack { };
 		};
 
-		void CDynLayout::AddItem(int iIDItem, MoveRatio move, SizeRatio size)
-		{
-			const auto hWnd = ::GetDlgItem(m_hWndHost, iIDItem);
-			assert(hWnd != nullptr);
-			if (hWnd != nullptr) {
-				m_vecItems.emplace_back(ItemData { .hWnd { hWnd }, .move { move }, .size { size } });
-			}
+		void CDynLayout::AddItem(int iIDItem, MoveRatio move, SizeRatio size) {
+			AddItem(::GetDlgItem(m_hWndHost, iIDItem), move, size);
 		}
 
-		void CDynLayout::Enable(bool fTrack)
-		{
+		void CDynLayout::AddItem(HWND hWndItem, MoveRatio move, SizeRatio size) {
+			assert(hWndItem != nullptr);
+			if (hWndItem == nullptr)
+				return;
+
+			if (move.IsNull() && size.IsNull())
+				return;
+
+			m_vecItems.emplace_back(ItemData { .hWnd { hWndItem }, .move { move }, .size { size } });
+		}
+
+		void CDynLayout::Enable(bool fTrack) {
 			m_fTrack = fTrack;
 			if (m_fTrack) {
 				::GetClientRect(m_hWndHost, &m_rcHostOrig);
@@ -226,8 +237,60 @@ namespace DWFONTCHOOSE {
 			}
 		}
 
-		void CDynLayout::OnSize(int iWidth, int iHeight)const
-		{
+		bool CDynLayout::LoadFromResource(HINSTANCE hInstRes, const wchar_t* pwszNameResource) {
+			assert(pwszNameResource != nullptr);
+			if (pwszNameResource == nullptr)
+				return false;
+
+			assert(m_hWndHost != nullptr);
+			if (m_hWndHost == nullptr)
+				return false;
+
+			const auto hDlgLayout = ::FindResourceW(hInstRes, pwszNameResource, L"AFX_DIALOG_LAYOUT");
+			if (hDlgLayout == nullptr) { //No such resource found in the hInstRes.
+				return false;
+			}
+
+			const auto hResData = ::LoadResource(hInstRes, hDlgLayout);
+			assert(hResData != nullptr);
+			if (hResData == nullptr)
+				return false;
+
+			const auto pResData = ::LockResource(hResData);
+			assert(pResData != nullptr);
+			if (pResData == nullptr)
+				return false;
+
+			const auto dwSizeRes = ::SizeofResource(hInstRes, hDlgLayout);
+			const auto* pDataBegin = reinterpret_cast<WORD*>(pResData);
+			const auto* const pDataEnd = reinterpret_cast<WORD*>(reinterpret_cast<std::byte*>(pResData) + dwSizeRes);
+
+			assert(*pDataBegin == 0);
+			if (*pDataBegin != 0) //First WORD must be zero, it's a header (version number).
+				return false;
+
+			++pDataBegin; //Past first WORD is the actual data.
+			auto hWndChild = ::GetWindow(m_hWndHost, GW_CHILD); //First child window in the host window.
+			while (pDataBegin + 4 <= pDataEnd) { //Actual AFX_DIALOG_LAYOUT data.
+				if (hWndChild == nullptr)
+					break;
+
+				const auto wXMoveRatio = *pDataBegin++;
+				const auto wYMoveRatio = *pDataBegin++;
+				const auto wXSizeRatio = *pDataBegin++;
+				const auto wYSizeRatio = *pDataBegin++;
+				AddItem(hWndChild, MoveHorzAndVert(wXMoveRatio, wYMoveRatio), SizeHorzAndVert(wXSizeRatio, wYSizeRatio));
+				hWndChild = ::GetWindow(hWndChild, GW_HWNDNEXT);
+			}
+
+			return true;
+		}
+
+		bool CDynLayout::LoadFromResource(HINSTANCE hInstRes, UINT uNameResource) {
+			return LoadFromResource(hInstRes, MAKEINTRESOURCEW(uNameResource));
+		}
+
+		void CDynLayout::OnSize(int iWidth, int iHeight)const {
 			if (!m_fTrack)
 				return;
 
@@ -302,138 +365,6 @@ namespace DWFONTCHOOSE {
 			void SetRectEmpty() { ::SetRectEmpty(this); }
 			[[nodiscard]] auto TopLeft()const -> CPoint { return { { .x { left }, .y { top } } }; };
 			[[nodiscard]] int Width()const { return right - left; }
-		};
-
-		class CDC {
-		public:
-			CDC() = default;
-			CDC(HDC hDC) : m_hDC(hDC) { }
-			~CDC() = default;
-			operator HDC()const { return m_hDC; }
-			void AbortDoc()const { ::AbortDoc(m_hDC); }
-			int AlphaBlend(int iX, int iY, int iWidth, int iHeight, HDC hDCSrc,
-				int iXSrc, int iYSrc, int iWidthSrc, int iHeightSrc, BYTE bSrcAlpha = 255, BYTE bAlphaFormat = AC_SRC_ALPHA)const
-			{
-				const BLENDFUNCTION bf { .SourceConstantAlpha { bSrcAlpha }, .AlphaFormat { bAlphaFormat } };
-				return ::AlphaBlend(m_hDC, iX, iY, iWidth, iHeight, hDCSrc, iXSrc, iYSrc, iWidthSrc, iHeightSrc, bf);
-			}
-			BOOL BitBlt(int iX, int iY, int iWidth, int iHeight, HDC hDCSource, int iXSource, int iYSource, DWORD dwROP)const
-			{
-				//When blitting from a monochrome bitmap to a color one, the black color in the monohrome bitmap 
-				//becomes the destination DC’s text color, and the white color in the monohrome bitmap 
-				//becomes the destination DC’s background color, when using SRCCOPY mode.
-				return ::BitBlt(m_hDC, iX, iY, iWidth, iHeight, hDCSource, iXSource, iYSource, dwROP);
-			}
-			[[nodiscard]] auto CreateCompatibleBitmap(int iWidth, int iHeight)const -> HBITMAP
-			{
-				return ::CreateCompatibleBitmap(m_hDC, iWidth, iHeight);
-			}
-			[[nodiscard]] CDC CreateCompatibleDC()const { return ::CreateCompatibleDC(m_hDC); }
-			void DeleteDC()const { ::DeleteDC(m_hDC); }
-			bool DrawFrameControl(LPRECT pRC, UINT uType, UINT uState)const
-			{
-				return ::DrawFrameControl(m_hDC, pRC, uType, uState);
-			}
-			bool DrawFrameControl(int iX, int iY, int iWidth, int iHeight, UINT uType, UINT uState)const
-			{
-				RECT rc { .left { iX }, .top { iY }, .right { iX + iWidth }, .bottom { iY + iHeight } };
-				return DrawFrameControl(&rc, uType, uState);
-			}
-			void DrawImage(HBITMAP hBmp, int iX, int iY, int iWidth, int iHeight)const
-			{
-				const auto dcMem = CreateCompatibleDC();
-				dcMem.SelectObject(hBmp);
-				BITMAP bm; ::GetObjectW(hBmp, sizeof(BITMAP), &bm);
-
-				//Only 32bit bitmaps can have alpha channel.
-				//If destination and source bitmaps do not have the same color format, 
-				//AlphaBlend converts the source bitmap to match the destination bitmap.
-				//AlphaBlend works with both, DI (DeviceIndependent) and DD (DeviceDependent), bitmaps.
-				AlphaBlend(iX, iY, iWidth, iHeight, dcMem, 0, 0, iWidth, iHeight, 255, bm.bmBitsPixel == 32 ? AC_SRC_ALPHA : 0);
-				dcMem.DeleteDC();
-			}
-			[[nodiscard]] HDC GetHDC()const { return m_hDC; }
-			void GetTextMetricsW(LPTEXTMETRICW pTM)const { ::GetTextMetricsW(m_hDC, pTM); }
-			auto SetBkColor(COLORREF clr)const -> COLORREF { return ::SetBkColor(m_hDC, clr); }
-			void DrawEdge(LPRECT pRC, UINT uEdge, UINT uFlags)const { ::DrawEdge(m_hDC, pRC, uEdge, uFlags); }
-			void DrawFocusRect(LPCRECT pRc)const { ::DrawFocusRect(m_hDC, pRc); }
-			int DrawTextW(std::wstring_view wsv, LPRECT pRect, UINT uFormat)const
-			{
-				return DrawTextW(wsv.data(), static_cast<int>(wsv.size()), pRect, uFormat);
-			}
-			int DrawTextW(LPCWSTR pwszText, int iSize, LPRECT pRect, UINT uFormat)const
-			{
-				return ::DrawTextW(m_hDC, pwszText, iSize, pRect, uFormat);
-			}
-			int EndDoc()const { return ::EndDoc(m_hDC); }
-			int EndPage()const { return ::EndPage(m_hDC); }
-			void FillSolidRect(LPCRECT pRC, COLORREF clr)const
-			{
-				::SetBkColor(m_hDC, clr); ::ExtTextOutW(m_hDC, 0, 0, ETO_OPAQUE, pRC, nullptr, 0, nullptr);
-			}
-			[[nodiscard]] auto GetClipBox()const -> CRect { RECT rc; ::GetClipBox(m_hDC, &rc); return rc; }
-			bool LineTo(POINT pt)const { return LineTo(pt.x, pt.y); }
-			bool LineTo(int x, int y)const { return ::LineTo(m_hDC, x, y); }
-			bool MoveTo(POINT pt)const { return MoveTo(pt.x, pt.y); }
-			bool MoveTo(int x, int y)const { return ::MoveToEx(m_hDC, x, y, nullptr); }
-			bool Polygon(const POINT* pPT, int iCount)const { return ::Polygon(m_hDC, pPT, iCount); }
-			int SetDIBits(HBITMAP hBmp, UINT uStartLine, UINT uLines, const void* pBits, const BITMAPINFO* pBMI, UINT uClrUse)const
-			{
-				return ::SetDIBits(m_hDC, hBmp, uStartLine, uLines, pBits, pBMI, uClrUse);
-			}
-			int SetDIBitsToDevice(int iX, int iY, DWORD dwWidth, DWORD dwHeight, int iXSrc, int iYSrc, UINT uStartLine, UINT uLines,
-				const void* pBits, const BITMAPINFO* pBMI, UINT uClrUse)const
-			{
-				return ::SetDIBitsToDevice(m_hDC, iX, iY, dwWidth, dwHeight, iXSrc, iYSrc, uStartLine, uLines, pBits, pBMI, uClrUse);
-			}
-			int SetMapMode(int iMode)const { return ::SetMapMode(m_hDC, iMode); }
-			auto SetTextColor(COLORREF clr)const -> COLORREF { return ::SetTextColor(m_hDC, clr); }
-			auto SetViewportOrg(int iX, int iY)const -> POINT { POINT pt; ::SetViewportOrgEx(m_hDC, iX, iY, &pt); return pt; }
-			auto SelectObject(HGDIOBJ hObj)const -> HGDIOBJ { return ::SelectObject(m_hDC, hObj); }
-			int StartDocW(const DOCINFOW* pDI)const { return ::StartDocW(m_hDC, pDI); }
-			int StartPage()const { return ::StartPage(m_hDC); }
-			void TextOutW(int iX, int iY, LPCWSTR pwszText, int iSize)const { ::TextOutW(m_hDC, iX, iY, pwszText, iSize); }
-			void TextOutW(int iX, int iY, std::wstring_view wsv)const
-			{
-				TextOutW(iX, iY, wsv.data(), static_cast<int>(wsv.size()));
-			}
-		protected:
-			HDC m_hDC;
-		};
-
-		class CPaintDC final : public CDC {
-		public:
-			CPaintDC(HWND hWnd) : m_hWnd(hWnd) { assert(::IsWindow(hWnd)); m_hDC = ::BeginPaint(m_hWnd, &m_PS); }
-			~CPaintDC() { ::EndPaint(m_hWnd, &m_PS); }
-		private:
-			PAINTSTRUCT m_PS;
-			HWND m_hWnd;
-		};
-
-		class CMemDC final : public CDC {
-		public:
-			CMemDC(HDC hDC, RECT rc) : m_hDCOrig(hDC), m_rc(rc)
-			{
-				m_hDC = ::CreateCompatibleDC(m_hDCOrig);
-				assert(m_hDC != nullptr);
-				const auto iWidth = m_rc.right - m_rc.left;
-				const auto iHeight = m_rc.bottom - m_rc.top;
-				m_hBmp = ::CreateCompatibleBitmap(m_hDCOrig, iWidth, iHeight);
-				assert(m_hBmp != nullptr);
-				::SelectObject(m_hDC, m_hBmp);
-			}
-			~CMemDC()
-			{
-				const auto iWidth = m_rc.right - m_rc.left;
-				const auto iHeight = m_rc.bottom - m_rc.top;
-				::BitBlt(m_hDCOrig, m_rc.left, m_rc.top, iWidth, iHeight, m_hDC, m_rc.left, m_rc.top, SRCCOPY);
-				::DeleteObject(m_hBmp);
-				::DeleteDC(m_hDC);
-			}
-		private:
-			HDC m_hDCOrig;
-			HBITMAP m_hBmp;
-			RECT m_rc;
 		};
 
 		class CWnd {
@@ -628,119 +559,6 @@ namespace DWFONTCHOOSE {
 				assert(IsWindow()); ::SendMessageW(m_hWnd, CB_SETITEMDATA, iIndex, static_cast<LPARAM>(dwData));
 			}
 		};
-
-		class CMenu {
-		public:
-			CMenu() = default;
-			CMenu(HMENU hMenu) { Attach(hMenu); }
-			~CMenu() = default;
-			CMenu operator=(const CWnd&) = delete;
-			CMenu operator=(HMENU) = delete;
-			operator HMENU()const { return m_hMenu; }
-			void AppendItem(UINT uFlags, UINT_PTR uIDItem, LPCWSTR pNameItem)const
-			{
-				assert(IsMenu()); ::AppendMenuW(m_hMenu, uFlags, uIDItem, pNameItem);
-			}
-			void AppendSepar()const { AppendItem(MF_SEPARATOR, 0, nullptr); }
-			void AppendString(UINT_PTR uIDItem, LPCWSTR pNameItem)const { AppendItem(MF_STRING, uIDItem, pNameItem); }
-			void Attach(HMENU hMenu) { m_hMenu = hMenu; }
-			void CreatePopupMenu() { Attach(::CreatePopupMenu()); }
-			void DestroyMenu() { assert(IsMenu()); ::DestroyMenu(m_hMenu); m_hMenu = nullptr; }
-			void Detach() { m_hMenu = nullptr; }
-			void EnableItem(UINT uIDItem, bool fEnable, bool fByID = true)const
-			{
-				assert(IsMenu()); ::EnableMenuItem(m_hMenu, uIDItem, (fEnable ? MF_ENABLED : MF_GRAYED) |
-					(fByID ? MF_BYCOMMAND : MF_BYPOSITION));
-			}
-			[[nodiscard]] auto GetHMENU()const -> HMENU { return m_hMenu; }
-			[[nodiscard]] auto GetItemBitmap(UINT uID, bool fByID = true)const -> HBITMAP
-			{
-				return GetItemInfo(uID, MIIM_BITMAP, fByID).hbmpItem;
-			}
-			[[nodiscard]] auto GetItemBitmapCheck(UINT uID, bool fByID = true)const -> HBITMAP
-			{
-				return GetItemInfo(uID, MIIM_CHECKMARKS, fByID).hbmpChecked;
-			}
-			[[nodiscard]] auto GetItemID(int iPos)const -> UINT
-			{
-				assert(IsMenu()); return ::GetMenuItemID(m_hMenu, iPos);
-			}
-			bool GetItemInfo(UINT uID, LPMENUITEMINFOW pMII, bool fByID = true)const
-			{
-				assert(IsMenu()); return ::GetMenuItemInfoW(m_hMenu, uID, !fByID, pMII) != FALSE;
-			}
-			[[nodiscard]] auto GetItemInfo(UINT uID, UINT uMask, bool fByID = true)const -> MENUITEMINFOW
-			{
-				MENUITEMINFOW mii { .cbSize { sizeof(MENUITEMINFOW) }, .fMask { uMask } };
-				GetItemInfo(uID, &mii, fByID); return mii;
-			}
-			[[nodiscard]] auto GetItemState(UINT uID, bool fByID = true)const -> UINT
-			{
-				assert(IsMenu()); return ::GetMenuState(m_hMenu, uID, fByID ? MF_BYCOMMAND : MF_BYPOSITION);
-			}
-			[[nodiscard]] auto GetItemType(UINT uID, bool fByID = true)const -> UINT
-			{
-				return GetItemInfo(uID, MIIM_FTYPE, fByID).fType;
-			}
-			[[nodiscard]] auto GetItemWstr(UINT uID, bool fByID = true)const -> std::wstring
-			{
-				wchar_t buff[128]; MENUITEMINFOW mii { .cbSize { sizeof(MENUITEMINFOW) }, .fMask { MIIM_STRING },
-					.dwTypeData { buff }, .cch { 128 } }; return GetItemInfo(uID, &mii, fByID) ? buff : std::wstring { };
-			}
-			[[nodiscard]] int GetItemsCount()const
-			{
-				assert(IsMenu()); return ::GetMenuItemCount(m_hMenu);
-			}
-			[[nodiscard]] auto GetSubMenu(int iPos)const -> CMenu { assert(IsMenu()); return ::GetSubMenu(m_hMenu, iPos); };
-			[[nodiscard]] bool IsItemChecked(UINT uIDItem, bool fByID = true)const
-			{
-				return GetItemState(uIDItem, fByID) & MF_CHECKED;
-			}
-			[[nodiscard]] bool IsItemSepar(UINT uPos)const { return GetItemState(uPos, false) & MF_SEPARATOR; }
-			[[nodiscard]] bool IsMenu()const { return ::IsMenu(m_hMenu); }
-			bool LoadMenuW(HINSTANCE hInst, LPCWSTR pwszName) { m_hMenu = ::LoadMenuW(hInst, pwszName); return IsMenu(); }
-			bool LoadMenuW(HINSTANCE hInst, UINT uMenuID) { return LoadMenuW(hInst, MAKEINTRESOURCEW(uMenuID)); }
-			void SetItemBitmap(UINT uItem, HBITMAP hBmp, bool fByID = true)const
-			{
-				const MENUITEMINFOW mii { .cbSize { sizeof(MENUITEMINFOW) }, .fMask { MIIM_BITMAP }, .hbmpItem { hBmp } };
-				SetItemInfo(uItem, &mii, fByID);
-			}
-			void SetItemBitmapCheck(UINT uItem, HBITMAP hBmp, bool fByID = true)const
-			{
-				::SetMenuItemBitmaps(m_hMenu, uItem, fByID ? MF_BYCOMMAND : MF_BYPOSITION, nullptr, hBmp);
-			}
-			void SetItemCheck(UINT uIDItem, bool fCheck, bool fByID = true)const
-			{
-				assert(IsMenu()); ::CheckMenuItem(m_hMenu, uIDItem, (fCheck ? MF_CHECKED : MF_UNCHECKED) |
-					(fByID ? MF_BYCOMMAND : MF_BYPOSITION));
-			}
-			void SetItemData(UINT uItem, ULONG_PTR dwData, bool fByID = true)const
-			{
-				const MENUITEMINFOW mii { .cbSize { sizeof(MENUITEMINFOW) }, .fMask { MIIM_DATA }, .dwItemData { dwData } };
-				SetItemInfo(uItem, &mii, fByID);
-			}
-			void SetItemInfo(UINT uItem, LPCMENUITEMINFO pMII, bool fByID = true)const
-			{
-				assert(IsMenu()); ::SetMenuItemInfoW(m_hMenu, uItem, !fByID, pMII);
-			}
-			void SetItemType(UINT uItem, UINT uType, bool fByID = true)const
-			{
-				const MENUITEMINFOW mii { .cbSize { sizeof(MENUITEMINFOW) }, .fMask { MIIM_FTYPE }, .fType { uType } };
-				SetItemInfo(uItem, &mii, fByID);
-			}
-			void SetItemWstr(UINT uItem, const std::wstring& wstr, bool fByID = true)const
-			{
-				const MENUITEMINFOW mii { .cbSize { sizeof(MENUITEMINFOW) }, .fMask { MIIM_STRING },
-					.dwTypeData { const_cast<LPWSTR>(wstr.data()) } };
-				SetItemInfo(uItem, &mii, fByID);
-			}
-			BOOL TrackPopupMenu(int iX, int iY, HWND hWndOwner, UINT uFlags = TPM_LEFTALIGN | TPM_TOPALIGN | TPM_LEFTBUTTON)const
-			{
-				assert(IsMenu()); return ::TrackPopupMenuEx(m_hMenu, uFlags, iX, iY, hWndOwner, nullptr);
-			}
-		private:
-			HMENU m_hMenu { }; //Windows menu handle.
-		};
 	};
 
 	enum class EFontInfo : std::int8_t { FONT_FAMILY, FONT_FACE };
@@ -761,7 +579,7 @@ namespace DWFONTCHOOSE {
 		~CDWFontChooseEnum();
 		void Create(HWND hWndParent, UINT uCtrlID, EFontInfo eFontInfo);
 		[[nodiscard]] auto ProcessMsg(const MSG& msg) -> LRESULT;
-		void SetData(const std::vector<DXUT::DWFONTFAMILYINFO>& vecFontInfo, UINT32 u32ItemID = 0);
+		void SetData(std::span<DXUT::DWFONTFAMILYINFO> spnFFI, UINT32 u32ItemID = 0);
 	private:
 		struct ITEMSINVIEW {
 			UINT32 u32FirstItem { }; //Index in the vector.
@@ -814,7 +632,7 @@ namespace DWFONTCHOOSE {
 		DXUT::comptr<IDWriteTextLayout1> m_pLayoutData;
 		DXUT::DWFONTINFO m_tfi { .wstrFamilyName { L"Courier New" }, .wstrLocale { L"en-us" },
 			.flSizeDIP { m_flSizeFontMainDIP } };
-		const std::vector<DXUT::DWFONTFAMILYINFO>* m_pVecFontInfo { };
+		std::span<DXUT::DWFONTFAMILYINFO> m_spnFFI;
 		float m_flDPIScale { 1.F }; //DPI scale factor for the window.
 		UINT32 m_u32ItemSelected { };
 		UINT32 m_u32ItemHighlighted { };
@@ -897,25 +715,35 @@ namespace DWFONTCHOOSE {
 		}
 	}
 
-	void CDWFontChooseEnum::SetData(const std::vector<DXUT::DWFONTFAMILYINFO>& vecFontInfo, UINT32 u32ItemID)
+	void CDWFontChooseEnum::SetData(std::span<DXUT::DWFONTFAMILYINFO> spnFFI, UINT32 u32ItemID)
 	{
-		assert(u32ItemID < vecFontInfo.size());
+		m_spnFFI = spnFFI;
+		if (m_spnFFI.empty()) {
+			m_pLayoutData = DXUT::DWCreateTextLayout(L"", m_pDWTextFormatMain, 0, 0);
+			m_fDataSet = false;
+			RecalcScroll();
+			m_Wnd.RedrawWindow();
+			return;
+		}
+
+		assert(u32ItemID < spnFFI.size());
 		assert(m_Wnd.IsWindow());
 
-		m_pVecFontInfo = &vecFontInfo;
 		m_u32FamilyItemID = u32ItemID;
 		m_u32ItemHighlighted = 0; //Highlight first line on data set.
 		std::wstring wstrData;
 
 		switch (m_eFontInfo) {
 		case EFontInfo::FONT_FAMILY:
-			for (const auto& vec : vecFontInfo) {
-				wstrData += vec.wstrFamilyName + L"\r";
+			for (const auto& ffi : m_spnFFI) {
+				wstrData += ffi.wstrFamilyName + L"\r";
 			}
 			break;
 		case EFontInfo::FONT_FACE:
-			for (const auto& vec : vecFontInfo[u32ItemID].vecFontFaceInfo) {
-				wstrData += vec.wstrWeightStretchStyleFaceName + L"\r";
+			if (!spnFFI.empty()) {
+				for (const auto& ffi : m_spnFFI[u32ItemID].vecFontFaceInfo) {
+					wstrData += ffi.wstrWeightStretchStyleFaceName + L"\r";
+				}
 			}
 			break;
 		default:
@@ -973,20 +801,20 @@ namespace DWFONTCHOOSE {
 		const UINT32 u32FirstItem = iScrollYPx / iLineHeightPx;
 		UINT32 u32ItemsInView = (rcClient.Height() / iLineHeightPx) + (rcClient.Height() % iLineHeightPx > 0 ? 1 : 0);
 
-		std::size_t sSizeMax { 0U };
+		std::size_t uzSizeMax { 0U };
 		switch (m_eFontInfo) {
 		case EFontInfo::FONT_FAMILY:
-			sSizeMax = m_pVecFontInfo->size();
+			uzSizeMax = m_spnFFI.size();
 			break;
 		case EFontInfo::FONT_FACE:
-			sSizeMax = (*m_pVecFontInfo)[m_u32FamilyItemID].vecFontFaceInfo.size();
+			uzSizeMax = !m_spnFFI.empty() ? m_spnFFI[m_u32FamilyItemID].vecFontFaceInfo.size() : 0;
 			break;
 		default:
 			break;
 		}
 
-		if (u32ItemsInView + u32FirstItem > sSizeMax) {
-			u32ItemsInView = static_cast<UINT32>(sSizeMax - u32FirstItem);
+		if (u32ItemsInView + u32FirstItem > uzSizeMax) {
+			u32ItemsInView = static_cast<UINT32>(uzSizeMax - u32FirstItem);
 		}
 
 		return { .u32FirstItem { u32FirstItem }, .u32Total { u32ItemsInView },
@@ -1002,13 +830,13 @@ namespace DWFONTCHOOSE {
 
 		switch (m_eFontInfo) {
 		case EFontInfo::FONT_FAMILY:
-			return static_cast<UINT32>(m_pVecFontInfo->size() - 1);
+			return static_cast<UINT32>(m_spnFFI.size() - 1);
 		case EFontInfo::FONT_FACE:
-			if ((*m_pVecFontInfo)[m_u32FamilyItemID].vecFontFaceInfo.empty()) {
+			if (m_spnFFI[m_u32FamilyItemID].vecFontFaceInfo.empty()) {
 				return { };
 			}
 
-			return static_cast<UINT32>((*m_pVecFontInfo)[m_u32FamilyItemID].vecFontFaceInfo.size() - 1);
+			return static_cast<UINT32>(m_spnFFI[m_u32FamilyItemID].vecFontFaceInfo.size() - 1);
 		default:
 			return { };
 		}
@@ -1034,13 +862,13 @@ namespace DWFONTCHOOSE {
 
 		switch (m_eFontInfo) {
 		case EFontInfo::FONT_FAMILY:
-			if (u32Item >= m_pVecFontInfo->size()) {
-				u32Item = static_cast<UINT32>(m_pVecFontInfo->size() - 1);
+			if (u32Item >= m_spnFFI.size()) {
+				u32Item = static_cast<UINT32>(m_spnFFI.size() - 1);
 			}
 			break;
 		case EFontInfo::FONT_FACE:
-			if (u32Item >= (*m_pVecFontInfo)[m_u32FamilyItemID].vecFontFaceInfo.size()) {
-				u32Item = static_cast<UINT32>((*m_pVecFontInfo)[m_u32FamilyItemID].vecFontFaceInfo.size() - 1);
+			if (u32Item >= m_spnFFI[m_u32FamilyItemID].vecFontFaceInfo.size()) {
+				u32Item = static_cast<UINT32>(m_spnFFI[m_u32FamilyItemID].vecFontFaceInfo.size() - 1);
 			}
 			break;
 		default:
@@ -1061,14 +889,16 @@ namespace DWFONTCHOOSE {
 		UINT32 u32FaceItemID { 0 };
 		switch (m_eFontInfo) {
 		case EFontInfo::FONT_FAMILY:
-			if (u32Item >= m_pVecFontInfo->size()) {
-				u32Item = static_cast<UINT32>(m_pVecFontInfo->size() - 1);
+			if (u32Item >= m_spnFFI.size()) {
+				u32Item = static_cast<UINT32>(m_spnFFI.size() - 1);
 			}
 			u32FamilyItemID = u32Item;
 			break;
 		case EFontInfo::FONT_FACE:
-			if (u32Item >= (*m_pVecFontInfo)[m_u32FamilyItemID].vecFontFaceInfo.size()) {
-				u32Item = static_cast<UINT32>((*m_pVecFontInfo)[m_u32FamilyItemID].vecFontFaceInfo.size() - 1);
+			if (!m_spnFFI.empty()) {
+				if (u32Item >= m_spnFFI[m_u32FamilyItemID].vecFontFaceInfo.size()) {
+					u32Item = static_cast<UINT32>(m_spnFFI[m_u32FamilyItemID].vecFontFaceInfo.size() - 1);
+				}
 			}
 			u32FamilyItemID = m_u32FamilyItemID;
 			u32FaceItemID = u32Item;
@@ -1215,11 +1045,11 @@ namespace DWFONTCHOOSE {
 			const DXUT::DWFONTFACEINFO* pFontFaceInfo { };
 			switch (m_eFontInfo) {
 			case EFontInfo::FONT_FAMILY:
-				pFontInfo = &(*m_pVecFontInfo)[uCurrLine];
+				pFontInfo = &m_spnFFI[uCurrLine];
 				pFontFaceInfo = &(pFontInfo->vecFontFaceInfo)[0];
 				break;
 			case EFontInfo::FONT_FACE:
-				pFontInfo = &(*m_pVecFontInfo)[m_u32FamilyItemID];
+				pFontInfo = &m_spnFFI[m_u32FamilyItemID];
 				pFontFaceInfo = &(pFontInfo->vecFontFaceInfo)[uCurrLine];
 				break;
 			default:
@@ -1862,7 +1692,7 @@ namespace DWFONTCHOOSE {
 			&fIsTrail, &fIsInside, &htm);
 
 		if (fIsInside) { //Select a clicked word.
-			std::wstring_view wsv(m_wstrData.data(), htm.textPosition); //View beforehead.
+			const std::wstring_view wsv(m_wstrData.data(), htm.textPosition); //View beforehead.
 
 			if (m_wstrData.at(htm.textPosition) == L' ') {
 				m_u32StartSel = static_cast<UINT32>(wsv.find_last_not_of(L' ') + 1);
@@ -2107,16 +1937,19 @@ namespace DWFONTCHOOSE {
 	class CDWFontChooseDlg final {
 	public:
 		auto DoModal(const DWFONTCHOOSEINFO& fci) -> INT_PTR;
-		[[nodiscard]] auto GetData() -> DXUT::DWFONTINFO&;
+		[[nodiscard]] auto GetData() -> const DXUT::DWFONTINFO&;
 		[[nodiscard]] auto ProcessMsg(const MSG& msg) -> INT_PTR;
 	private:
 		void EditSizeIncDec(int iSizeToAdd);
+		[[nodiscard]] auto GetComboFamilyRowIDFromData(EDWFontFamily eFF)const -> int;
+		[[nodiscard]] auto GetComboFamilySelection()const -> EDWFontFamily;
 		[[nodiscard]] auto GetEditFontSize()const -> float;
 		[[nodiscard]] auto GetFontInfo() -> DXUT::DWFONTINFO;
 		void FontFaceChoosen(const FONTCHOOSE* pFontChoose);
 		void OnCancel();
-		void OnCheckUnderline();
+		void OnCommandComboFontFamilies();
 		void OnCheckStrikethrough();
+		void OnCheckUnderline();
 		auto OnCommand(const MSG& msg) -> INT_PTR;
 		void OnCommandCombo(DWORD dwCtrlID, DWORD dwCode);
 		void OnCommandEdit(DWORD dwCtrlID, DWORD dwCode);
@@ -2134,6 +1967,9 @@ namespace DWFONTCHOOSE {
 		void SetComboStyleSel(DWORD_PTR dwStyle);
 		void SetEditFontSize(float flSize);
 		void ShowProperties(bool fShow);
+		void SetStatTextFontFacesTotal(std::size_t uzCount);
+		void SortVector(EDWFontFamily eFF);
+		void UpdateFontFamiliesList();
 		void UpdateSampleText();
 	private:
 		static inline auto m_hCurResize { static_cast<HCURSOR>(::LoadImageW(nullptr, IDC_SIZEWE, IMAGE_CURSOR, 0, 0, LR_SHARED)) };
@@ -2148,18 +1984,20 @@ namespace DWFONTCHOOSE {
 			IDC_STATIC_WEIGHTPROP, IDC_STATIC_WEIGHTPROP_DATA, IDC_STATIC_STRETCHPROP,
 			IDC_STATIC_STRETCHPROP_DATA, IDC_STATIC_STYLEPROP, IDC_STATIC_STYLEPROP_DATA,
 			IDC_STATIC_TYPO_FACE_NAME, IDC_STATIC_TYPO_FACE_NAME_DATA };
-		DWFONTCHOOSEINFO m_fci;
-		GDIUT::CWnd m_Wnd;
-		GDIUT::CDynLayout m_DynLayout;
-		GDIUT::CWndEdit m_EditSize;
-		GDIUT::CWndCombo m_ComboWeight;
-		GDIUT::CWndCombo m_ComboStretch;
-		GDIUT::CWndCombo m_ComboStyle;
-		std::vector<DXUT::DWFONTFAMILYINFO> m_vecFonts;
-		DXUT::DWFONTINFO m_FI;
 		CDWFontChooseEnum m_FontFamilies;
 		CDWFontChooseEnum m_FontFaces;
 		CDWFontChooseSampleText m_SampleText;
+		DWFONTCHOOSEINFO m_fci;
+		DXUT::DWFONTINFO m_FI;
+		std::vector<DXUT::DWFONTFAMILYINFO> m_vecFonts;
+		std::span<DXUT::DWFONTFAMILYINFO> m_spnFFI;
+		GDIUT::CDynLayout m_DynLayout;
+		GDIUT::CWnd m_Wnd;
+		GDIUT::CWndEdit m_EditSize;
+		GDIUT::CWndCombo m_ComboFamily;
+		GDIUT::CWndCombo m_ComboWeight;
+		GDIUT::CWndCombo m_ComboStretch;
+		GDIUT::CWndCombo m_ComboStyle;
 		UINT32 m_u32FamilyItemID { }; //Currently choosen font family in the m_vecFonts.
 		UINT32 m_u32FaceItemID { };   //Currently choosen font face in the m_vecFonts[m_u32FamilyItemID].
 		GDIUT::CPoint m_ptSizeClicked;
@@ -2174,7 +2012,7 @@ namespace DWFONTCHOOSE {
 			fci.hWndParent, GDIUT::DlgProc<CDWFontChooseDlg>, reinterpret_cast<LPARAM>(this));
 	}
 
-	auto CDWFontChooseDlg::GetData()->DXUT::DWFONTINFO& {
+	auto CDWFontChooseDlg::GetData()->const DXUT::DWFONTINFO& {
 		return m_FI;
 	}
 
@@ -2196,8 +2034,26 @@ namespace DWFONTCHOOSE {
 	}
 
 
+	//Private methods.
+
 	void CDWFontChooseDlg::EditSizeIncDec(int iSizeToAdd) {
 		SetEditFontSize(GetEditFontSize() + iSizeToAdd);
+	}
+
+	auto CDWFontChooseDlg::GetComboFamilyRowIDFromData(EDWFontFamily eFF)const->int
+	{
+		for (int i = 0; i < m_ComboFamily.GetCount(); ++i) {
+			if (m_ComboFamily.GetItemData(i) == static_cast<DWORD_PTR>(eFF)) {
+				return i;
+			}
+		}
+
+		return -1;
+	}
+
+	auto CDWFontChooseDlg::GetComboFamilySelection()const->EDWFontFamily
+	{
+		return static_cast<EDWFontFamily>(m_ComboFamily.GetItemData(m_ComboFamily.GetCurSel()));
 	}
 
 	void CDWFontChooseDlg::FontFaceChoosen(const FONTCHOOSE* pFontChoose)
@@ -2261,16 +2117,14 @@ namespace DWFONTCHOOSE {
 		UpdateSampleText();
 	}
 
-	void CDWFontChooseDlg::OnCheckUnderline()
-	{
-		GDIUT::CWndBtn chk(m_Wnd.GetDlgItem(IDC_CHK_UNDERLINE));
-		m_SampleText.SetUnderline(chk.IsChecked());
-	}
-
 	void CDWFontChooseDlg::OnCheckStrikethrough()
 	{
-		GDIUT::CWndBtn chk(m_Wnd.GetDlgItem(IDC_CHK_STRIKETHROUGH));
-		m_SampleText.SetStrikethrough(chk.IsChecked());
+		m_SampleText.SetStrikethrough(GDIUT::CWndBtn(m_Wnd.GetDlgItem(IDC_CHK_STRIKETHROUGH)).IsChecked());
+	}
+
+	void CDWFontChooseDlg::OnCheckUnderline()
+	{
+		m_SampleText.SetUnderline(GDIUT::CWndBtn(m_Wnd.GetDlgItem(IDC_CHK_UNDERLINE)).IsChecked());
 	}
 
 	auto CDWFontChooseDlg::GetEditFontSize()const->float {
@@ -2304,6 +2158,7 @@ namespace DWFONTCHOOSE {
 		case IDC_BTN_PROPERTIES:
 			ShowProperties(!m_fPropertiesShown);
 			break;
+		case IDC_COMBO_FONT_FAMILY:
 		case IDC_COMBO_FONT_WEIGHT:
 		case IDC_COMBO_FONT_STRETCH:
 		case IDC_COMBO_FONT_STYLE:
@@ -2325,11 +2180,22 @@ namespace DWFONTCHOOSE {
 		return TRUE;
 	}
 
-	void CDWFontChooseDlg::OnCommandCombo([[maybe_unused]] DWORD dwCtrlID, DWORD dwCode)
+	void CDWFontChooseDlg::OnCommandCombo(DWORD dwCtrlID, DWORD dwCode)
 	{
 		if (dwCode == CBN_SELCHANGE) {
-			UpdateSampleText();
+			if (dwCtrlID == IDC_COMBO_FONT_FAMILY) {
+				OnCommandComboFontFamilies();
+			}
+			else {
+				UpdateSampleText();
+			}
 		}
+	}
+
+	void CDWFontChooseDlg::OnCommandComboFontFamilies()
+	{
+		SortVector(GetComboFamilySelection());
+		UpdateFontFamiliesList();
 	}
 
 	void CDWFontChooseDlg::OnCommandEdit([[maybe_unused]] DWORD dwCtrlID, DWORD dwCode)
@@ -2369,11 +2235,21 @@ namespace DWFONTCHOOSE {
 	{
 		m_Wnd.Attach(msg.hwnd);
 		m_EditSize.Attach(m_Wnd.GetDlgItem(IDC_EDIT_FONT_SIZE));
+		m_ComboFamily.Attach(m_Wnd.GetDlgItem(IDC_COMBO_FONT_FAMILY));
 		m_ComboWeight.Attach(m_Wnd.GetDlgItem(IDC_COMBO_FONT_WEIGHT));
 		m_ComboStretch.Attach(m_Wnd.GetDlgItem(IDC_COMBO_FONT_STRETCH));
 		m_ComboStyle.Attach(m_Wnd.GetDlgItem(IDC_COMBO_FONT_STYLE));
 
-		auto iIndex = m_ComboWeight.AddString(L"Thin");
+		using enum EDWFontFamily;
+		auto iIndex = m_ComboFamily.AddString(L"All");
+		m_ComboFamily.SetItemData(iIndex, static_cast<DWORD_PTR>(FAMILY_ALL));
+		iIndex = m_ComboFamily.AddString(L"Monospaced");
+		m_ComboFamily.SetItemData(iIndex, static_cast<DWORD_PTR>(FAMILY_MONOSPACED));
+		iIndex = m_ComboFamily.AddString(L"Non-Monospaced");
+		m_ComboFamily.SetItemData(iIndex, static_cast<DWORD_PTR>(FAMILY_NONMONOSPACED));
+		m_ComboFamily.SetCurSel(GetComboFamilyRowIDFromData(m_fci.eFontFamily));
+
+		iIndex = m_ComboWeight.AddString(L"Thin");
 		m_ComboWeight.SetItemData(iIndex, DWRITE_FONT_WEIGHT_THIN);
 		iIndex = m_ComboWeight.AddString(L"Extra-light");
 		m_ComboWeight.SetItemData(iIndex, DWRITE_FONT_WEIGHT_EXTRA_LIGHT);
@@ -2424,16 +2300,19 @@ namespace DWFONTCHOOSE {
 
 		m_SampleText.Create(m_Wnd, IDC_CUSTOM_FONT_SAMPLE);
 		m_vecFonts = DXUT::DWGetSystemFonts(m_fci.wstrLocale.data());
-		std::sort(m_vecFonts.begin(), m_vecFonts.end(), [](DXUT::DWFONTFAMILYINFO& lhs, DXUT::DWFONTFAMILYINFO& rhs) {
-			return lhs.wstrFamilyName < rhs.wstrFamilyName;	});
+		SortVector(GetComboFamilySelection());
+
 		m_FontFamilies.Create(m_Wnd, IDC_CUSTOM_FONT_FAMILY, EFontInfo::FONT_FAMILY);
 		m_FontFaces.Create(m_Wnd, IDC_CUSTOM_FONT_FACE, EFontInfo::FONT_FACE);
-		m_FontFamilies.SetData(m_vecFonts);
+		UpdateFontFamiliesList();
 		SetEditFontSize(35);
 
 		m_DynLayout.SetHost(m_Wnd);
 		m_DynLayout.AddItem(IDC_CUSTOM_FONT_FAMILY, GDIUT::CDynLayout::MoveNone(), GDIUT::CDynLayout::SizeHorzAndVert(50, 50));
 		m_DynLayout.AddItem(IDC_CUSTOM_FONT_FACE, GDIUT::CDynLayout::MoveHorz(50), GDIUT::CDynLayout::SizeHorzAndVert(50, 50));
+		m_DynLayout.AddItem(IDC_COMBO_FONT_FAMILY, GDIUT::CDynLayout::MoveVert(50), GDIUT::CDynLayout::SizeNone());
+		m_DynLayout.AddItem(IDC_STATIC_TOTALFAMILIES, GDIUT::CDynLayout::MoveHorzAndVert(50, 50), GDIUT::CDynLayout::SizeNone());
+		m_DynLayout.AddItem(IDC_STATIC_TOTALFACES, GDIUT::CDynLayout::MoveHorzAndVert(100, 50), GDIUT::CDynLayout::SizeNone());
 		m_DynLayout.AddItem(IDC_CUSTOM_FONT_SAMPLE, GDIUT::CDynLayout::MoveVert(50), GDIUT::CDynLayout::SizeHorzAndVert(100, 50));
 		m_DynLayout.AddItem(IDC_EDIT_FONT_SIZE, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
 		m_DynLayout.AddItem(IDC_STATIC_SIZE, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
@@ -2452,6 +2331,7 @@ namespace DWFONTCHOOSE {
 		for (const auto i : m_arrIDsFaceProps) {
 			m_DynLayout.AddItem(i, GDIUT::CDynLayout::MoveHorz(100), GDIUT::CDynLayout::SizeNone());
 		}
+
 		m_DynLayout.Enable(true);
 		ShowProperties(false);
 
@@ -2509,7 +2389,8 @@ namespace DWFONTCHOOSE {
 		case IDC_CUSTOM_FONT_FAMILY:
 			switch (pNMHDR->code) {
 			case MSG_FONT_CHOOSE:
-				m_FontFaces.SetData(m_vecFonts, pFC->u32FamilyItemID);
+				m_FontFaces.SetData(m_spnFFI, pFC->u32FamilyItemID);
+				SetStatTextFontFacesTotal(m_spnFFI[pFC->u32FamilyItemID].vecFontFaceInfo.size());
 				break;
 			default:
 				break;
@@ -2611,6 +2492,51 @@ namespace DWFONTCHOOSE {
 		m_Wnd.GetDlgItem(IDC_BTN_PROPERTIES).SetWndText(fShow ? L"Properties <<" : L"Properties >>");
 		m_fPropertiesShown = fShow;
 		m_DynLayout.Enable(true);
+	}
+
+	void CDWFontChooseDlg::SetStatTextFontFacesTotal(std::size_t uzCount)
+	{
+		GDIUT::CWnd(m_Wnd.GetDlgItem(IDC_STATIC_TOTALFACES)).SetWndText(std::format(L"Total Faces: {}", uzCount));
+	}
+
+	void CDWFontChooseDlg::SortVector(EDWFontFamily eFF)
+	{
+		using enum EDWFontFamily;
+		switch (eFF) {
+		case FAMILY_ALL:
+			m_spnFFI = m_vecFonts;
+			break;
+		case FAMILY_MONOSPACED:
+		{
+			const auto it = std::partition(m_vecFonts.begin(), m_vecFonts.end(), [](const DXUT::DWFONTFAMILYINFO& ffi) {
+				return ffi.fIsMonospaced; });
+			m_spnFFI = { m_vecFonts.data(), static_cast<std::size_t>(it - m_vecFonts.begin()) };
+		}
+		break;
+		case FAMILY_NONMONOSPACED:
+		{
+			const auto it = std::partition(m_vecFonts.begin(), m_vecFonts.end(), [](const DXUT::DWFONTFAMILYINFO& ffi) {
+				return !ffi.fIsMonospaced; });
+			m_spnFFI = { m_vecFonts.data(), static_cast<std::size_t>(it - m_vecFonts.begin()) };
+		}
+		break;
+		default:
+			break;
+		}
+
+		std::sort(m_spnFFI.begin(), m_spnFFI.end(), [](const DXUT::DWFONTFAMILYINFO& lhs, const DXUT::DWFONTFAMILYINFO& rhs) {
+			return lhs.wstrFamilyName < rhs.wstrFamilyName;	});
+	}
+
+	void CDWFontChooseDlg::UpdateFontFamiliesList()
+	{
+		m_FontFamilies.SetData(m_spnFFI);
+		if (m_spnFFI.empty()) {
+			m_FontFaces.SetData(m_spnFFI); //To empty data in the m_FontFaces list.
+			SetStatTextFontFacesTotal(0);
+		}
+
+		GDIUT::CWnd(m_Wnd.GetDlgItem(IDC_STATIC_TOTALFAMILIES)).SetWndText(std::format(L"Total: {}", m_spnFFI.size()));
 	}
 
 	void CDWFontChooseDlg::UpdateSampleText()
