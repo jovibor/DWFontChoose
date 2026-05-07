@@ -24,9 +24,6 @@
     <ClCompile Include="..\DWFontChoose\DWFontChoose.ixx">
       <Filter>DWFontChoose</Filter>
     </ClCompile>
-    <ClCompile Include="..\DWFontChoose\DXUtility.ixx">
-      <Filter>DWFontChoose</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\DWFontChoose\DWFontChoose.rc">

@@ -2,6 +2,6 @@ import DWFontChoose;
 
 int WinMain()
 {
-	const auto optFontInfo = DWFontChoose();
+	const auto optFontInfo = DWFONTCHOOSE::DWFontChoose();
 	return 0;
 }
