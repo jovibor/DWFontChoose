@@ -164,6 +164,316 @@ namespace DWFONTCHOOSE {
 			return 0;
 		}
 
+		class CPoint final : public POINT {
+		public:
+			CPoint() : POINT { } { }
+			CPoint(POINT pt) : POINT { pt } { }
+			CPoint(int x, int y) : POINT { .x { x }, .y { y } } { }
+			~CPoint() = default;
+			operator LPPOINT() { return this; }
+			operator const POINT*()const { return this; }
+			bool operator==(CPoint rhs)const { return x == rhs.x && y == rhs.y; }
+			bool operator==(POINT pt)const { return x == pt.x && y == pt.y; }
+			friend bool operator==(POINT pt, CPoint rhs) { return rhs == pt; }
+			CPoint operator+(POINT pt)const { return { x + pt.x, y + pt.y }; }
+			CPoint operator-(POINT pt)const { return { x - pt.x, y - pt.y }; }
+			void Offset(int iX, int iY) { x += iX; y += iY; }
+			void Offset(POINT pt) { Offset(pt.x, pt.y); }
+		};
+
+		class CRect final : public RECT {
+		public:
+			CRect() : RECT { } { }
+			CRect(int iLeft, int iTop, int iRight, int iBottom) : RECT { .left { iLeft }, .top { iTop },
+				.right { iRight }, .bottom { iBottom } }
+			{ }
+			CRect(RECT rc) { ::CopyRect(this, &rc); }
+			CRect(LPCRECT pRC) { ::CopyRect(this, pRC); }
+			CRect(POINT pt, SIZE size) : RECT { .left { pt.x }, .top { pt.y }, .right { pt.x + size.cx },
+				.bottom { pt.y + size.cy } }
+			{ }
+			CRect(POINT topLeft, POINT botRight) : RECT { .left { topLeft.x }, .top { topLeft.y },
+				.right { botRight.x }, .bottom { botRight.y } }
+			{ }
+			~CRect() = default;
+			operator LPRECT() { return this; }
+			operator LPCRECT()const { return this; }
+			bool operator==(CRect rhs)const { return ::EqualRect(this, rhs); }
+			bool operator==(RECT rc)const { return ::EqualRect(this, &rc); }
+			friend bool operator==(RECT rc, CRect rhs) { return rhs == rc; }
+			CRect& operator=(RECT rc) { ::CopyRect(this, &rc); return *this; }
+			[[nodiscard]] auto BottomRight()const -> CPoint { return { { .x { right }, .y { bottom } } }; };
+			void DeflateRect(int x, int y) { ::InflateRect(this, -x, -y); }
+			void DeflateRect(SIZE size) { ::InflateRect(this, -size.cx, -size.cy); }
+			void DeflateRect(LPCRECT pRC) { left += pRC->left; top += pRC->top; right -= pRC->right; bottom -= pRC->bottom; }
+			void DeflateRect(int l, int t, int r, int b) { left += l; top += t; right -= r; bottom -= b; }
+			[[nodiscard]] int Height()const { return bottom - top; }
+			[[nodiscard]] bool IsRectEmpty()const { return ::IsRectEmpty(this); }
+			[[nodiscard]] bool IsRectNull()const { return (left == 0 && right == 0 && top == 0 && bottom == 0); }
+			void OffsetRect(int x, int y) { ::OffsetRect(this, x, y); }
+			void OffsetRect(POINT pt) { ::OffsetRect(this, pt.x, pt.y); }
+			[[nodiscard]] bool PtInRect(POINT pt)const { return ::PtInRect(this, pt); }
+			void SetRect(int x1, int y1, int x2, int y2) { ::SetRect(this, x1, y1, x2, y2); }
+			void SetRectEmpty() { ::SetRectEmpty(this); }
+			[[nodiscard]] auto TopLeft()const -> CPoint { return { { .x { left }, .y { top } } }; };
+			[[nodiscard]] int Width()const { return right - left; }
+		};
+
+		class CSplitter final {
+		public:
+			enum class EAnchorSide : std::uint8_t { SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM };
+			void AddItem(HWND hWndItem, bool fIsResize);
+			void AddItem(int iItemID, bool fIsResize);
+			void Initialize(HWND hWndHost, HWND hWndAnchor, EAnchorSide eAnchorSide, std::uint32_t u32Radius = 15);
+			void Initialize(HWND hWndHost, int iAnchorID, EAnchorSide eAnchorSide, std::uint32_t u32Radius = 15);
+			[[nodiscard]] bool IsSplitting()const; //Is splitting is going on atm.
+			void SetMinMaxEdge(int iMinEdge, int iMaxEdge);
+
+			//These WM* handlers must be placed into the respective host window handlers.
+			void WMMouseMove(int iX, int iY);
+			void WMLButtonDown(int iX, int iY);
+			void WMLButtonUp();
+		private:
+			[[nodiscard]] bool IsLock()const;
+			void Lock();
+			void Unlock();
+		private:
+			inline static CSplitter* m_pSplitterCurrentlyInUse { }; //The currently active splitter.
+			struct ItemData {
+				HWND hWnd { };      //Item window.
+				bool fIsResize { }; //Is resize or move.
+			};
+			std::vector<ItemData> m_vecItems; //All items to resize/move.
+			HWND m_hWndHost { };   //Host window.
+			HWND m_hWndAnchor { }; //Anchor window, to work as a splitter basepoint.
+			std::uint32_t m_u32Radius { }; //Radius from the anchor-window edge, where cursor turns into splitter (<->).
+			POINT m_ptCurr;     //Current cursor point under the splitter area.
+			int m_iMinEdge { }; //Minimum distance from the left (or top) side to stop splitting.
+			int m_iMaxEdge { 0x7FFFFFFF }; //Maximum distance from the left (or top) side to stop splitting.
+			EAnchorSide m_eAnchorSide;
+			bool m_fCurInSplitter { }; //Is cursor under the splitter area.
+			bool m_fSplitting { };     //Left mouse is down for resize atm.
+		};
+
+		void CSplitter::AddItem(HWND hWndItem, bool fIsResize) {
+			assert(hWndItem != nullptr);
+			if (hWndItem == nullptr)
+				return;
+
+			m_vecItems.emplace_back(hWndItem, fIsResize);
+		}
+
+		void CSplitter::AddItem(int iItemID, bool fIsResize) {
+			AddItem(::GetDlgItem(m_hWndHost, iItemID), fIsResize);
+		}
+
+		void CSplitter::Initialize(HWND hWndHost, HWND hWndAnchor, EAnchorSide eAnchorSide, std::uint32_t u32Radius) {
+			assert(hWndHost != nullptr);
+			assert(hWndAnchor != nullptr);
+			m_hWndHost = hWndHost;
+			m_hWndAnchor = hWndAnchor;
+			m_eAnchorSide = eAnchorSide;
+			m_u32Radius = u32Radius;
+		}
+
+		void CSplitter::Initialize(HWND hWndHost, int iAnchorID, EAnchorSide eAnchorSide, std::uint32_t u32SplitterWidth) {
+			Initialize(hWndHost, ::GetDlgItem(hWndHost, iAnchorID), eAnchorSide, u32SplitterWidth);
+		}
+
+		bool CSplitter::IsSplitting()const {
+			return m_fSplitting;
+		}
+
+		void CSplitter::SetMinMaxEdge(int iMinEdge, int iMaxEdge) {
+			m_iMinEdge = iMinEdge;
+			m_iMaxEdge = iMaxEdge;
+		}
+
+		void CSplitter::WMLButtonDown(int iX, int iY) {
+			if (IsLock()) {
+				return;
+			}
+
+			if (m_fCurInSplitter) {
+				m_ptCurr = POINT(iX, iY);
+				m_fSplitting = true;
+				Lock();
+				::SetCapture(m_hWndHost);
+			}
+		}
+
+		void CSplitter::WMLButtonUp() {
+			if (IsLock()) {
+				return;
+			}
+
+			if (m_fSplitting) {
+				m_fSplitting = false;
+				::ReleaseCapture();
+				Unlock();
+			}
+		}
+
+		void CSplitter::WMMouseMove(int iX, int iY) {
+			if (IsLock()) {
+				return;
+			}
+
+			const POINT pt { .x { iX }, .y { iY } };
+			CRect rcAnchorClient;
+			::GetWindowRect(m_hWndAnchor, &rcAnchorClient);
+			::ScreenToClient(m_hWndHost, reinterpret_cast<LPPOINT>(&rcAnchorClient));
+			::ScreenToClient(m_hWndHost, reinterpret_cast<LPPOINT>(&rcAnchorClient) + 1);
+			using enum EAnchorSide;
+
+			if (m_fSplitting) {
+				const auto iOffsetX = iX - m_ptCurr.x;
+				const auto iOffsetY = iY - m_ptCurr.y;
+				bool fAllowSplit { };
+
+				switch (m_eAnchorSide) {
+				case SIDE_LEFT:
+					rcAnchorClient.left += iOffsetX;
+					fAllowSplit = (rcAnchorClient.left >= m_iMinEdge) && (rcAnchorClient.left <= m_iMaxEdge);
+					break;
+				case SIDE_TOP:
+					rcAnchorClient.top += iOffsetY;
+					fAllowSplit = (rcAnchorClient.top >= m_iMinEdge) && (rcAnchorClient.top <= m_iMaxEdge);
+					break;
+				case SIDE_RIGHT:
+					rcAnchorClient.right += iOffsetX;
+					fAllowSplit = (rcAnchorClient.right >= m_iMinEdge) && (rcAnchorClient.right <= m_iMaxEdge);
+					break;
+				case SIDE_BOTTOM:
+					rcAnchorClient.bottom += iOffsetY;
+					fAllowSplit = (rcAnchorClient.bottom >= m_iMinEdge) && (rcAnchorClient.bottom <= m_iMaxEdge);
+					break;
+				default:
+					break;
+				}
+
+				if (fAllowSplit) {
+					auto hdwp = ::BeginDeferWindowPos(static_cast<int>(m_vecItems.size() + 1)); //+1 is the m_hWndAnchor itself.
+					hdwp = ::DeferWindowPos(hdwp, m_hWndAnchor, nullptr, rcAnchorClient.left, rcAnchorClient.top,
+						rcAnchorClient.Width(), rcAnchorClient.Height(), SWP_NOACTIVATE | SWP_NOZORDER);
+
+					for (const auto& [hWnd, fIsResize] : m_vecItems) {
+						CRect rcWnd;
+						::GetWindowRect(hWnd, &rcWnd);
+						::ScreenToClient(m_hWndHost, reinterpret_cast<LPPOINT>(&rcWnd));
+						::ScreenToClient(m_hWndHost, reinterpret_cast<LPPOINT>(&rcWnd) + 1);
+
+						switch (m_eAnchorSide) {
+						case SIDE_LEFT:
+							if (fIsResize) {
+								rcWnd.right += iOffsetX;
+							}
+							else {
+								rcWnd.OffsetRect(iOffsetX, 0);
+							}
+							break;
+						case SIDE_TOP:
+							if (fIsResize) {
+								rcWnd.bottom += iOffsetY;
+							}
+							else {
+								rcWnd.OffsetRect(0, iOffsetY);
+							}
+							break;
+						case SIDE_RIGHT:
+							if (fIsResize) {
+								rcWnd.left += iOffsetX;
+							}
+							else {
+								rcWnd.OffsetRect(iOffsetX, 0);
+							}
+							break;
+						case SIDE_BOTTOM:
+							if (fIsResize) {
+								rcWnd.top += iOffsetY;
+							}
+							else {
+								rcWnd.OffsetRect(0, iOffsetY);
+							}
+							break;
+						default:
+							break;
+						}
+
+						hdwp = ::DeferWindowPos(hdwp, hWnd, nullptr, rcWnd.left, rcWnd.top,
+									rcWnd.Width(), rcWnd.Height(), SWP_NOACTIVATE | SWP_NOZORDER);
+					}
+
+					m_ptCurr = POINT(iX, iY);
+					::EndDeferWindowPos(hdwp);
+				}
+			}
+			else {
+				CRect rcSplitter;
+				bool fCursorWE { };
+				switch (m_eAnchorSide) {
+				case SIDE_LEFT:
+					rcSplitter.SetRect(rcAnchorClient.left - m_u32Radius, rcAnchorClient.top,
+					rcAnchorClient.left + m_u32Radius, rcAnchorClient.bottom);
+					fCursorWE = true;
+					break;
+				case SIDE_TOP:
+					rcSplitter.SetRect(rcAnchorClient.left, rcAnchorClient.top - m_u32Radius,
+						rcAnchorClient.right, rcAnchorClient.top + m_u32Radius);
+					fCursorWE = false;
+					break;
+				case SIDE_RIGHT:
+					rcSplitter.SetRect(rcAnchorClient.right - m_u32Radius, rcAnchorClient.top,
+						rcAnchorClient.right + m_u32Radius, rcAnchorClient.bottom);
+					fCursorWE = true;
+					break;
+				case SIDE_BOTTOM:
+					rcSplitter.SetRect(rcAnchorClient.left, rcAnchorClient.bottom - m_u32Radius,
+						rcAnchorClient.right, rcAnchorClient.bottom + m_u32Radius);
+					fCursorWE = false;
+					break;
+				default:
+					break;
+				}
+
+				if (rcSplitter.PtInRect(pt)) {
+					static const auto hCurResizeWE =
+						static_cast<HCURSOR>(::LoadImageW(nullptr, IDC_SIZEWE, IMAGE_CURSOR, 0, 0, LR_SHARED));
+					static const auto hCurResizeNS =
+						static_cast<HCURSOR>(::LoadImageW(nullptr, IDC_SIZENS, IMAGE_CURSOR, 0, 0, LR_SHARED));
+					m_fCurInSplitter = true;
+
+					//The cursor must be set here and not in the WM_SETCURSOR handler,
+					//because the WM_SETCURSOR message doesn't fire when in SetCapture mode.
+					::SetCursor(fCursorWE ? hCurResizeWE : hCurResizeNS);
+					::SetCapture(m_hWndHost);
+				}
+				else {
+					if (m_fCurInSplitter) {
+						m_fCurInSplitter = false;
+						::ReleaseCapture();
+					}
+				}
+			}
+		}
+
+		//Private methods.
+
+		bool CSplitter::IsLock()const {
+			//Locking mechanism is needed to avoid Set/ReleaseCapture interference 
+			//between two or more splitters in the same window.
+			return m_pSplitterCurrentlyInUse != nullptr && m_pSplitterCurrentlyInUse != this;
+		}
+
+		void CSplitter::Lock() {
+			m_pSplitterCurrentlyInUse = this;
+		}
+
+		void CSplitter::Unlock() {
+			m_pSplitterCurrentlyInUse = nullptr;
+		}
+
+
 		class CDynLayout final {
 		public:
 			//Ratio settings, for how much to move or to resize child item when parent is resized.
@@ -323,61 +633,6 @@ namespace DWFONTCHOOSE {
 			}
 			::EndDeferWindowPos(hDWP);
 		}
-
-		class CPoint final : public POINT {
-		public:
-			CPoint() : POINT { } { }
-			CPoint(POINT pt) : POINT { pt } { }
-			CPoint(int x, int y) : POINT { .x { x }, .y { y } } { }
-			~CPoint() = default;
-			operator LPPOINT() { return this; }
-			operator const POINT*()const { return this; }
-			bool operator==(CPoint rhs)const { return x == rhs.x && y == rhs.y; }
-			bool operator==(POINT pt)const { return x == pt.x && y == pt.y; }
-			friend bool operator==(POINT pt, CPoint rhs) { return rhs == pt; }
-			CPoint operator+(POINT pt)const { return { x + pt.x, y + pt.y }; }
-			CPoint operator-(POINT pt)const { return { x - pt.x, y - pt.y }; }
-			void Offset(int iX, int iY) { x += iX; y += iY; }
-			void Offset(POINT pt) { Offset(pt.x, pt.y); }
-		};
-
-		class CRect final : public RECT {
-		public:
-			CRect() : RECT { } { }
-			CRect(int iLeft, int iTop, int iRight, int iBottom) : RECT { .left { iLeft }, .top { iTop },
-				.right { iRight }, .bottom { iBottom } }
-			{ }
-			CRect(RECT rc) { ::CopyRect(this, &rc); }
-			CRect(LPCRECT pRC) { ::CopyRect(this, pRC); }
-			CRect(POINT pt, SIZE size) : RECT { .left { pt.x }, .top { pt.y }, .right { pt.x + size.cx },
-				.bottom { pt.y + size.cy } }
-			{ }
-			CRect(POINT topLeft, POINT botRight) : RECT { .left { topLeft.x }, .top { topLeft.y },
-				.right { botRight.x }, .bottom { botRight.y } }
-			{ }
-			~CRect() = default;
-			operator LPRECT() { return this; }
-			operator LPCRECT()const { return this; }
-			bool operator==(CRect rhs)const { return ::EqualRect(this, rhs); }
-			bool operator==(RECT rc)const { return ::EqualRect(this, &rc); }
-			friend bool operator==(RECT rc, CRect rhs) { return rhs == rc; }
-			CRect& operator=(RECT rc) { ::CopyRect(this, &rc); return *this; }
-			[[nodiscard]] auto BottomRight()const -> CPoint { return { { .x { right }, .y { bottom } } }; };
-			void DeflateRect(int x, int y) { ::InflateRect(this, -x, -y); }
-			void DeflateRect(SIZE size) { ::InflateRect(this, -size.cx, -size.cy); }
-			void DeflateRect(LPCRECT pRC) { left += pRC->left; top += pRC->top; right -= pRC->right; bottom -= pRC->bottom; }
-			void DeflateRect(int l, int t, int r, int b) { left += l; top += t; right -= r; bottom -= b; }
-			[[nodiscard]] int Height()const { return bottom - top; }
-			[[nodiscard]] bool IsRectEmpty()const { return ::IsRectEmpty(this); }
-			[[nodiscard]] bool IsRectNull()const { return (left == 0 && right == 0 && top == 0 && bottom == 0); }
-			void OffsetRect(int x, int y) { ::OffsetRect(this, x, y); }
-			void OffsetRect(POINT pt) { ::OffsetRect(this, pt.x, pt.y); }
-			[[nodiscard]] bool PtInRect(POINT pt)const { return ::PtInRect(this, pt); }
-			void SetRect(int x1, int y1, int x2, int y2) { ::SetRect(this, x1, y1, x2, y2); }
-			void SetRectEmpty() { ::SetRectEmpty(this); }
-			[[nodiscard]] auto TopLeft()const -> CPoint { return { { .x { left }, .y { top } } }; };
-			[[nodiscard]] int Width()const { return right - left; }
-		};
 
 		class CWnd {
 		public:
@@ -1614,6 +1869,7 @@ namespace DWFONTCHOOSE {
 		CDWFontChooseSampleText();
 		~CDWFontChooseSampleText();
 		void Create(HWND hWndParent, UINT uCtrlID);
+		[[nodiscard]] auto GetHWND()const -> HWND;
 		[[nodiscard]] auto ProcessMsg(const MSG& msg) -> LRESULT;
 		void SetFontInfo(const DWFONTINFO& fi);
 		void SetUnderline(bool fIsUnderline);
@@ -1736,6 +1992,10 @@ namespace DWFONTCHOOSE {
 		m_pD2DDeviceContext->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White), m_pD2DBrushWhite);
 		m_effSelection.SetBkBrush(m_pD2DBrushBlue);
 		m_effSelection.SetTextBrush(m_pD2DBrushWhite);
+	}
+
+	auto CDWFontChooseSampleText::GetHWND()const->HWND {
+		return m_Wnd;
 	}
 
 	auto CDWFontChooseSampleText::ProcessMsg(const MSG& msg)->LRESULT
@@ -2398,6 +2658,7 @@ namespace DWFONTCHOOSE {
 		auto OnMouseMove(const MSG& msg) -> INT_PTR;
 		auto OnNotify(const MSG& msg) -> INT_PTR;
 		void OnOK();
+		auto OnSetCursor() -> INT_PTR;
 		auto OnSize(const MSG& msg) -> INT_PTR;
 		void SetComboWeightSel(DWORD_PTR dwWeight);
 		void SetComboStretchSel(DWORD_PTR dwStretch);
@@ -2409,8 +2670,6 @@ namespace DWFONTCHOOSE {
 		void UpdateFontFamiliesList();
 		void UpdateSampleText();
 	private:
-		static inline auto m_hCurResize { static_cast<HCURSOR>(::LoadImageW(nullptr, IDC_SIZEWE, IMAGE_CURSOR, 0, 0, LR_SHARED)) };
-		static inline auto m_hCurArrow { static_cast<HCURSOR>(::LoadImageW(nullptr, IDC_ARROW, IMAGE_CURSOR, 0, 0, LR_SHARED)) };
 		static constexpr int m_arrIDsFaceProps[] = { IDC_STATIC_GRP_FACE_PROPS,
 			IDC_STATIC_FAM_NAME, IDC_STATIC_FAM_NAME_DATA, IDC_STATIC_TYPO_FAM_NAME,
 			IDC_STATIC_TYPO_FAM_NAME_DATA, IDC_STATIC_W_S_S_FACE_NAME, IDC_STATIC_W_S_S_FACE_NAME_DATA,
@@ -2428,8 +2687,12 @@ namespace DWFONTCHOOSE {
 		DWFONTINFO m_FI;
 		std::vector<DXUT::DWFONTFAMILYINFO> m_vecFonts;
 		std::span<DXUT::DWFONTFAMILYINFO> m_spnFFI;
+		GDIUT::CSplitter m_SplitHorz;
+		GDIUT::CSplitter m_SplitVert;
 		GDIUT::CDynLayout m_DynLayout;
 		GDIUT::CWnd m_Wnd;
+		GDIUT::CWnd m_WndSampleText;
+		GDIUT::CWnd m_WndStatSize;
 		GDIUT::CWndEdit m_EditSize;
 		GDIUT::CWndCombo m_ComboFamily;
 		GDIUT::CWndCombo m_ComboWeight;
@@ -2438,6 +2701,7 @@ namespace DWFONTCHOOSE {
 		UINT32 m_u32FamilyItemID { }; //Currently choosen font family in the m_vecFonts.
 		UINT32 m_u32FaceItemID { };   //Currently choosen font face in the m_vecFonts[m_u32FamilyItemID].
 		GDIUT::CPoint m_ptSizeClicked;
+		bool m_fCurResize { };
 		bool m_fLMDownSize { };
 		bool m_fPropertiesShown { };
 	};
@@ -2464,6 +2728,7 @@ namespace DWFONTCHOOSE {
 		case WM_LBUTTONUP: return OnLButtonUp(msg);
 		case WM_MOUSEMOVE: return OnMouseMove(msg);
 		case WM_NOTIFY: return OnNotify(msg);
+		case WM_SETCURSOR: return OnSetCursor();
 		case WM_SIZE: return OnSize(msg);
 		default:
 			return 0;
@@ -2671,6 +2936,7 @@ namespace DWFONTCHOOSE {
 	auto CDWFontChooseDlg::OnInitDialog(const MSG& msg)->INT_PTR
 	{
 		m_Wnd.Attach(msg.hwnd);
+		m_WndStatSize.Attach(m_Wnd.GetDlgItem(IDC_STATIC_SIZE));
 		m_EditSize.Attach(m_Wnd.GetDlgItem(IDC_EDIT_FONT_SIZE));
 		m_ComboFamily.Attach(m_Wnd.GetDlgItem(IDC_COMBO_FONT_FAMILY));
 		m_ComboWeight.Attach(m_Wnd.GetDlgItem(IDC_COMBO_FONT_WEIGHT));
@@ -2736,6 +3002,7 @@ namespace DWFONTCHOOSE {
 		m_ComboStyle.SetItemData(iIndex, DWRITE_FONT_STYLE_ITALIC);
 
 		m_SampleText.Create(m_Wnd, IDC_CUSTOM_FONT_SAMPLE);
+		m_WndSampleText.Attach(m_SampleText.GetHWND());
 		m_vecFonts = DXUT::DWGetSystemFonts(m_fci.wstrLocale.data());
 		SortVector(GetComboFamilySelection());
 
@@ -2743,6 +3010,22 @@ namespace DWFONTCHOOSE {
 		m_FontFaces.Create(m_Wnd, IDC_CUSTOM_FONT_FACE, EFontInfo::FONT_FACE);
 		UpdateFontFamiliesList();
 		SetEditFontSize(35);
+
+		auto rcSTClient = m_WndSampleText.GetWindowRect();
+		m_Wnd.ScreenToClient(rcSTClient);
+
+		m_SplitHorz.Initialize(m_Wnd, IDC_CUSTOM_FONT_FAMILY, GDIUT::CSplitter::EAnchorSide::SIDE_RIGHT);
+		m_SplitHorz.SetMinMaxEdge(1, rcSTClient.right - 1);
+		m_SplitHorz.AddItem(IDC_CUSTOM_FONT_FACE, true);
+		m_SplitHorz.AddItem(IDC_STATIC_TOTALFAMILIES, false);
+
+		m_SplitVert.Initialize(m_Wnd, IDC_CUSTOM_FONT_SAMPLE, GDIUT::CSplitter::EAnchorSide::SIDE_TOP);
+		m_SplitVert.SetMinMaxEdge(30, rcSTClient.bottom - 1);
+		m_SplitVert.AddItem(IDC_CUSTOM_FONT_FAMILY, true);
+		m_SplitVert.AddItem(IDC_CUSTOM_FONT_FACE, true);
+		m_SplitVert.AddItem(IDC_COMBO_FONT_FAMILY, false);
+		m_SplitVert.AddItem(IDC_STATIC_TOTALFAMILIES, false);
+		m_SplitVert.AddItem(IDC_STATIC_TOTALFACES, false);
 
 		m_DynLayout.SetHost(m_Wnd);
 		m_DynLayout.AddItem(IDC_CUSTOM_FONT_FAMILY, GDIUT::CDynLayout::MoveNone(), GDIUT::CDynLayout::SizeHorzAndVert(50, 50));
@@ -2778,23 +3061,31 @@ namespace DWFONTCHOOSE {
 	auto CDWFontChooseDlg::OnLButtonDown(const MSG& msg)->LRESULT
 	{
 		const POINT pt { .x { ut::GetXLPARAM(msg.lParam) }, .y { ut::GetYLPARAM(msg.lParam) } };
-		auto rcStaticSize = m_Wnd.GetDlgItem(IDC_STATIC_SIZE).GetWindowRect();
-		m_Wnd.ScreenToClient(rcStaticSize);
-		if (rcStaticSize.PtInRect(pt)) {
-			m_Wnd.SetCapture();
+		auto rcStatSize = m_WndStatSize.GetWindowRect();
+		m_Wnd.ScreenToClient(rcStatSize);
+		if (rcStatSize.PtInRect(pt)) {
 			m_ptSizeClicked = pt;
 			m_fLMDownSize = true;
-			::SetCursor(m_hCurResize);
+			m_Wnd.SetCapture();
+			return TRUE;
+		}
+
+		m_SplitHorz.WMLButtonDown(pt.x, pt.y);
+		m_SplitVert.WMLButtonDown(pt.x, pt.y);
+		if (m_SplitHorz.IsSplitting() || m_SplitVert.IsSplitting()) {
+			m_DynLayout.Enable(false);
 		}
 
 		return TRUE;
 	}
 
-	auto CDWFontChooseDlg::OnLButtonUp(const MSG& msg)->LRESULT
+	auto CDWFontChooseDlg::OnLButtonUp([[maybe_unused]] const MSG& msg)->LRESULT
 	{
-		const POINT pt { .x { ut::GetXLPARAM(msg.lParam) }, .y { ut::GetYLPARAM(msg.lParam) } };
 		m_fLMDownSize = false;
 		::ReleaseCapture();
+		m_SplitHorz.WMLButtonUp();
+		m_SplitVert.WMLButtonUp();
+		m_DynLayout.Enable(true);
 
 		return TRUE;
 	}
@@ -2802,17 +3093,17 @@ namespace DWFONTCHOOSE {
 	auto CDWFontChooseDlg::OnMouseMove(const MSG& msg)->LRESULT
 	{
 		const POINT pt { .x { ut::GetXLPARAM(msg.lParam) }, .y { ut::GetYLPARAM(msg.lParam) } };
+		auto rcStatSize = m_WndStatSize.GetWindowRect();
+		m_Wnd.ScreenToClient(rcStatSize);
+		m_fCurResize = rcStatSize.PtInRect(pt);
 
 		if (m_fLMDownSize) {
-			::SetCursor(m_hCurResize);
 			EditSizeIncDec(pt.x - m_ptSizeClicked.x); //Positive or negative.
 			m_ptSizeClicked.x = pt.x;
 		}
-		else {
-			auto rcStaticSize = GDIUT::CWnd::FromHandle(m_Wnd.GetDlgItem(IDC_STATIC_SIZE)).GetWindowRect();
-			m_Wnd.ScreenToClient(rcStaticSize);
-			::SetCursor(rcStaticSize.PtInRect(pt) ? m_hCurResize : m_hCurArrow);
-		}
+
+		m_SplitHorz.WMMouseMove(pt.x, pt.y);
+		m_SplitVert.WMMouseMove(pt.x, pt.y);
 
 		return TRUE;
 	}
@@ -2858,11 +3149,27 @@ namespace DWFONTCHOOSE {
 		m_Wnd.EndDialog(IDOK);
 	}
 
+	auto CDWFontChooseDlg::OnSetCursor()->INT_PTR
+	{
+		if (m_fCurResize) {
+			static const auto hCurResize = static_cast<HCURSOR>(::LoadImageW(nullptr, IDC_SIZEWE, IMAGE_CURSOR, 0, 0, LR_SHARED));
+			::SetCursor(hCurResize);
+			return TRUE;
+		}
+
+		return 0; //Default cursor.
+	}
+
 	auto CDWFontChooseDlg::OnSize(const MSG& msg)->LRESULT
 	{
 		const auto wWidth = LOWORD(msg.lParam);
 		const auto wHeight = HIWORD(msg.lParam);
 		m_DynLayout.OnSize(wWidth, wHeight);
+
+		const auto hWndST = GDIUT::CWnd(m_SampleText.GetHWND());
+		auto rcSTClient = hWndST.GetWindowRect();
+		m_Wnd.ScreenToClient(rcSTClient);
+		m_SplitHorz.SetMinMaxEdge(1, rcSTClient.right);
 
 		return TRUE;
 	}
