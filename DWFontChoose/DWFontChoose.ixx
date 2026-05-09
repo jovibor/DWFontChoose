@@ -224,10 +224,10 @@ namespace DWFONTCHOOSE {
 			enum class EAnchorSide : std::uint8_t { SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM };
 			void AddItem(HWND hWndItem, bool fIsResize);
 			void AddItem(int iItemID, bool fIsResize);
-			void Initialize(HWND hWndHost, HWND hWndAnchor, EAnchorSide eAnchorSide, std::uint32_t u32Radius = 15);
-			void Initialize(HWND hWndHost, int iAnchorID, EAnchorSide eAnchorSide, std::uint32_t u32Radius = 15);
+			void Initialize(HWND hWndHost, HWND hWndAnchor, EAnchorSide eAnchorSide, std::uint32_t u32SplitterWidth = 30);
+			void Initialize(HWND hWndHost, int iAnchorID, EAnchorSide eAnchorSide, std::uint32_t u32SplitterWidth = 30);
 			[[nodiscard]] bool IsSplitting()const; //Is splitting is going on atm.
-			void SetMinMaxEdge(int iMinEdge, int iMaxEdge);
+			void SetEdges(int iMinEdge, int iMaxEdge);
 
 			//These WM* handlers must be placed into the respective host window handlers.
 			void WMMouseMove(int iX, int iY);
@@ -246,8 +246,8 @@ namespace DWFONTCHOOSE {
 			std::vector<ItemData> m_vecItems; //All items to resize/move.
 			HWND m_hWndHost { };   //Host window.
 			HWND m_hWndAnchor { }; //Anchor window, to work as a splitter basepoint.
-			std::uint32_t m_u32Radius { }; //Radius from the anchor-window edge, where cursor turns into splitter (<->).
-			POINT m_ptCurr;     //Current cursor point under the splitter area.
+			std::uint32_t m_u32WidthHalf { }; //Distance from the anchor-window's edge, where a cursor turns into a splitter (<->).
+			POINT m_ptCurr;     //Current cursor coordinates under the splitter area.
 			int m_iMinEdge { }; //Minimum distance from the left (or top) side to stop splitting.
 			int m_iMaxEdge { 0x7FFFFFFF }; //Maximum distance from the left (or top) side to stop splitting.
 			EAnchorSide m_eAnchorSide;
@@ -267,13 +267,13 @@ namespace DWFONTCHOOSE {
 			AddItem(::GetDlgItem(m_hWndHost, iItemID), fIsResize);
 		}
 
-		void CSplitter::Initialize(HWND hWndHost, HWND hWndAnchor, EAnchorSide eAnchorSide, std::uint32_t u32Radius) {
+		void CSplitter::Initialize(HWND hWndHost, HWND hWndAnchor, EAnchorSide eAnchorSide, std::uint32_t u32SplitterWidth) {
 			assert(hWndHost != nullptr);
 			assert(hWndAnchor != nullptr);
 			m_hWndHost = hWndHost;
 			m_hWndAnchor = hWndAnchor;
 			m_eAnchorSide = eAnchorSide;
-			m_u32Radius = u32Radius;
+			m_u32WidthHalf = u32SplitterWidth / 2;
 		}
 
 		void CSplitter::Initialize(HWND hWndHost, int iAnchorID, EAnchorSide eAnchorSide, std::uint32_t u32SplitterWidth) {
@@ -284,7 +284,7 @@ namespace DWFONTCHOOSE {
 			return m_fSplitting;
 		}
 
-		void CSplitter::SetMinMaxEdge(int iMinEdge, int iMaxEdge) {
+		void CSplitter::SetEdges(int iMinEdge, int iMaxEdge) {
 			m_iMinEdge = iMinEdge;
 			m_iMaxEdge = iMaxEdge;
 		}
@@ -413,23 +413,23 @@ namespace DWFONTCHOOSE {
 				bool fCursorWE { };
 				switch (m_eAnchorSide) {
 				case SIDE_LEFT:
-					rcSplitter.SetRect(rcAnchorClient.left - m_u32Radius, rcAnchorClient.top,
-					rcAnchorClient.left + m_u32Radius, rcAnchorClient.bottom);
+					rcSplitter.SetRect(rcAnchorClient.left - m_u32WidthHalf, rcAnchorClient.top,
+					rcAnchorClient.left + m_u32WidthHalf, rcAnchorClient.bottom);
 					fCursorWE = true;
 					break;
 				case SIDE_TOP:
-					rcSplitter.SetRect(rcAnchorClient.left, rcAnchorClient.top - m_u32Radius,
-						rcAnchorClient.right, rcAnchorClient.top + m_u32Radius);
+					rcSplitter.SetRect(rcAnchorClient.left, rcAnchorClient.top - m_u32WidthHalf,
+						rcAnchorClient.right, rcAnchorClient.top + m_u32WidthHalf);
 					fCursorWE = false;
 					break;
 				case SIDE_RIGHT:
-					rcSplitter.SetRect(rcAnchorClient.right - m_u32Radius, rcAnchorClient.top,
-						rcAnchorClient.right + m_u32Radius, rcAnchorClient.bottom);
+					rcSplitter.SetRect(rcAnchorClient.right - m_u32WidthHalf, rcAnchorClient.top,
+						rcAnchorClient.right + m_u32WidthHalf, rcAnchorClient.bottom);
 					fCursorWE = true;
 					break;
 				case SIDE_BOTTOM:
-					rcSplitter.SetRect(rcAnchorClient.left, rcAnchorClient.bottom - m_u32Radius,
-						rcAnchorClient.right, rcAnchorClient.bottom + m_u32Radius);
+					rcSplitter.SetRect(rcAnchorClient.left, rcAnchorClient.bottom - m_u32WidthHalf,
+						rcAnchorClient.right, rcAnchorClient.bottom + m_u32WidthHalf);
 					fCursorWE = false;
 					break;
 				default:
@@ -473,7 +473,6 @@ namespace DWFONTCHOOSE {
 			m_pSplitterCurrentlyInUse = nullptr;
 		}
 
-
 		class CDynLayout final {
 		public:
 			//Ratio settings, for how much to move or to resize child item when parent is resized.
@@ -486,14 +485,16 @@ namespace DWFONTCHOOSE {
 
 			CDynLayout() = default;
 			CDynLayout(HWND hWndHost) : m_hWndHost(hWndHost) { }
-			void AddItem(int iIDItem, MoveRatio move, SizeRatio size);
+			void AddItem(int iItemID, MoveRatio move, SizeRatio size);
 			void AddItem(HWND hWndItem, MoveRatio move, SizeRatio size);
 			void Enable(bool fTrack);
-			bool LoadFromResource(HINSTANCE hInstRes, const wchar_t* pwszNameResource);
-			bool LoadFromResource(HINSTANCE hInstRes, UINT uNameResource);
+			bool LoadFromResource(HINSTANCE hInstRes, const wchar_t* pwszResName);
+			bool LoadFromResource(HINSTANCE hInstRes, UINT uResID);
 			void OnSize(int iWidth, int iHeight)const; //Should be hooked into the host window's WM_SIZE handler.
 			void RemoveAll() { m_vecItems.clear(); }
 			void SetHost(HWND hWnd) { assert(hWnd != nullptr); m_hWndHost = hWnd; }
+			void UpdateItem(int iItemID, MoveRatio move, SizeRatio size);
+			void UpdateItem(HWND hWndItem, MoveRatio move, SizeRatio size);
 
 			//Static helper methods to use in the AddItem.
 			[[nodiscard]] static MoveRatio MoveNone() { return { }; }
@@ -532,16 +533,13 @@ namespace DWFONTCHOOSE {
 			bool m_fTrack { };
 		};
 
-		void CDynLayout::AddItem(int iIDItem, MoveRatio move, SizeRatio size) {
-			AddItem(::GetDlgItem(m_hWndHost, iIDItem), move, size);
+		void CDynLayout::AddItem(int iItemID, MoveRatio move, SizeRatio size) {
+			AddItem(::GetDlgItem(m_hWndHost, iItemID), move, size);
 		}
 
 		void CDynLayout::AddItem(HWND hWndItem, MoveRatio move, SizeRatio size) {
 			assert(hWndItem != nullptr);
 			if (hWndItem == nullptr)
-				return;
-
-			if (move.IsNull() && size.IsNull())
 				return;
 
 			m_vecItems.emplace_back(ItemData { .hWnd { hWndItem }, .move { move }, .size { size } });
@@ -559,16 +557,16 @@ namespace DWFONTCHOOSE {
 			}
 		}
 
-		bool CDynLayout::LoadFromResource(HINSTANCE hInstRes, const wchar_t* pwszNameResource) {
-			assert(pwszNameResource != nullptr);
-			if (pwszNameResource == nullptr)
+		bool CDynLayout::LoadFromResource(HINSTANCE hInstRes, const wchar_t* pwszResName) {
+			assert(pwszResName != nullptr);
+			if (pwszResName == nullptr)
 				return false;
 
 			assert(m_hWndHost != nullptr);
 			if (m_hWndHost == nullptr)
 				return false;
 
-			const auto hDlgLayout = ::FindResourceW(hInstRes, pwszNameResource, L"AFX_DIALOG_LAYOUT");
+			const auto hDlgLayout = ::FindResourceW(hInstRes, pwszResName, L"AFX_DIALOG_LAYOUT");
 			if (hDlgLayout == nullptr) { //No such resource found in the hInstRes.
 				return false;
 			}
@@ -608,8 +606,8 @@ namespace DWFONTCHOOSE {
 			return true;
 		}
 
-		bool CDynLayout::LoadFromResource(HINSTANCE hInstRes, UINT uNameResource) {
-			return LoadFromResource(hInstRes, MAKEINTRESOURCEW(uNameResource));
+		bool CDynLayout::LoadFromResource(HINSTANCE hInstRes, UINT uResID) {
+			return LoadFromResource(hInstRes, MAKEINTRESOURCEW(uResID));
 		}
 
 		void CDynLayout::OnSize(int iWidth, int iHeight)const {
@@ -632,6 +630,24 @@ namespace DWFONTCHOOSE {
 				::DeferWindowPos(hDWP, hWnd, nullptr, iNewLeft, iNewTop, iNewWidth, iNewHeight, SWP_NOZORDER | SWP_NOACTIVATE);
 			}
 			::EndDeferWindowPos(hDWP);
+		}
+
+		void CDynLayout::UpdateItem(int iItemID, MoveRatio move, SizeRatio size) {
+			UpdateItem(::GetDlgItem(m_hWndHost, iItemID), move, size);
+		}
+
+		void CDynLayout::UpdateItem(HWND hWndItem, MoveRatio move, SizeRatio size) {
+			assert(hWndItem != nullptr);
+			if (hWndItem == nullptr)
+				return;
+
+			auto it = std::find_if(m_vecItems.begin(), m_vecItems.end(), [=](const ItemData& id) {
+				return id.hWnd == hWndItem; });
+			assert(it != m_vecItems.end());
+			if (it != m_vecItems.end()) {
+				it->move = move;
+				it->size = size;
+			}
 		}
 
 		class CWnd {
@@ -1869,7 +1885,6 @@ namespace DWFONTCHOOSE {
 		CDWFontChooseSampleText();
 		~CDWFontChooseSampleText();
 		void Create(HWND hWndParent, UINT uCtrlID);
-		[[nodiscard]] auto GetHWND()const -> HWND;
 		[[nodiscard]] auto ProcessMsg(const MSG& msg) -> LRESULT;
 		void SetFontInfo(const DWFONTINFO& fi);
 		void SetUnderline(bool fIsUnderline);
@@ -1992,10 +2007,6 @@ namespace DWFONTCHOOSE {
 		m_pD2DDeviceContext->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::White), m_pD2DBrushWhite);
 		m_effSelection.SetBkBrush(m_pD2DBrushBlue);
 		m_effSelection.SetTextBrush(m_pD2DBrushWhite);
-	}
-
-	auto CDWFontChooseSampleText::GetHWND()const->HWND {
-		return m_Wnd;
 	}
 
 	auto CDWFontChooseSampleText::ProcessMsg(const MSG& msg)->LRESULT
@@ -2667,6 +2678,7 @@ namespace DWFONTCHOOSE {
 		void ShowProperties(bool fShow);
 		void SetStatTextFontFacesTotal(std::size_t uzCount);
 		void SortVector(EDWFontFamily eFF);
+		void UpdateDynamicLayoutRatios();
 		void UpdateFontFamiliesList();
 		void UpdateSampleText();
 	private:
@@ -2691,7 +2703,10 @@ namespace DWFONTCHOOSE {
 		GDIUT::CSplitter m_SplitVert;
 		GDIUT::CDynLayout m_DynLayout;
 		GDIUT::CWnd m_Wnd;
-		GDIUT::CWnd m_WndSampleText;
+		GDIUT::CWnd m_WndFontFamily;
+		GDIUT::CWnd m_WndFontFace;
+		GDIUT::CWnd m_WndFontSample;
+		GDIUT::CWnd m_WndStatTotalFamilies;
 		GDIUT::CWnd m_WndStatSize;
 		GDIUT::CWndEdit m_EditSize;
 		GDIUT::CWndCombo m_ComboFamily;
@@ -2936,6 +2951,10 @@ namespace DWFONTCHOOSE {
 	auto CDWFontChooseDlg::OnInitDialog(const MSG& msg)->INT_PTR
 	{
 		m_Wnd.Attach(msg.hwnd);
+		m_WndFontFamily.Attach(m_Wnd.GetDlgItem(IDC_CUSTOM_FONT_FAMILY));
+		m_WndFontFace.Attach(m_Wnd.GetDlgItem(IDC_CUSTOM_FONT_FACE));
+		m_WndFontSample.Attach(m_Wnd.GetDlgItem(IDC_CUSTOM_FONT_SAMPLE));
+		m_WndStatTotalFamilies.Attach(m_Wnd.GetDlgItem(IDC_STATIC_TOTALFAMILIES));
 		m_WndStatSize.Attach(m_Wnd.GetDlgItem(IDC_STATIC_SIZE));
 		m_EditSize.Attach(m_Wnd.GetDlgItem(IDC_EDIT_FONT_SIZE));
 		m_ComboFamily.Attach(m_Wnd.GetDlgItem(IDC_COMBO_FONT_FAMILY));
@@ -3002,7 +3021,6 @@ namespace DWFONTCHOOSE {
 		m_ComboStyle.SetItemData(iIndex, DWRITE_FONT_STYLE_ITALIC);
 
 		m_SampleText.Create(m_Wnd, IDC_CUSTOM_FONT_SAMPLE);
-		m_WndSampleText.Attach(m_SampleText.GetHWND());
 		m_vecFonts = DXUT::DWGetSystemFonts(m_fci.wstrLocale.data());
 		SortVector(GetComboFamilySelection());
 
@@ -3011,29 +3029,29 @@ namespace DWFONTCHOOSE {
 		UpdateFontFamiliesList();
 		SetEditFontSize(35);
 
-		auto rcSTClient = m_WndSampleText.GetWindowRect();
+		auto rcSTClient = m_WndFontSample.GetWindowRect();
 		m_Wnd.ScreenToClient(rcSTClient);
 
-		m_SplitHorz.Initialize(m_Wnd, IDC_CUSTOM_FONT_FAMILY, GDIUT::CSplitter::EAnchorSide::SIDE_RIGHT);
-		m_SplitHorz.SetMinMaxEdge(1, rcSTClient.right - 1);
-		m_SplitHorz.AddItem(IDC_CUSTOM_FONT_FACE, true);
-		m_SplitHorz.AddItem(IDC_STATIC_TOTALFAMILIES, false);
+		m_SplitHorz.Initialize(m_Wnd, m_WndFontFamily, GDIUT::CSplitter::EAnchorSide::SIDE_RIGHT);
+		m_SplitHorz.SetEdges(1, rcSTClient.right - 1);
+		m_SplitHorz.AddItem(m_WndFontFace, true);
+		m_SplitHorz.AddItem(m_WndStatTotalFamilies, false);
 
-		m_SplitVert.Initialize(m_Wnd, IDC_CUSTOM_FONT_SAMPLE, GDIUT::CSplitter::EAnchorSide::SIDE_TOP);
-		m_SplitVert.SetMinMaxEdge(30, rcSTClient.bottom - 1);
-		m_SplitVert.AddItem(IDC_CUSTOM_FONT_FAMILY, true);
-		m_SplitVert.AddItem(IDC_CUSTOM_FONT_FACE, true);
+		m_SplitVert.Initialize(m_Wnd, m_WndFontSample, GDIUT::CSplitter::EAnchorSide::SIDE_TOP, 7);
+		m_SplitVert.SetEdges(30, rcSTClient.bottom - 1);
+		m_SplitVert.AddItem(m_WndFontFamily, true);
+		m_SplitVert.AddItem(m_WndFontFace, true);
 		m_SplitVert.AddItem(IDC_COMBO_FONT_FAMILY, false);
-		m_SplitVert.AddItem(IDC_STATIC_TOTALFAMILIES, false);
+		m_SplitVert.AddItem(m_WndStatTotalFamilies, false);
 		m_SplitVert.AddItem(IDC_STATIC_TOTALFACES, false);
 
 		m_DynLayout.SetHost(m_Wnd);
-		m_DynLayout.AddItem(IDC_CUSTOM_FONT_FAMILY, GDIUT::CDynLayout::MoveNone(), GDIUT::CDynLayout::SizeHorzAndVert(50, 50));
-		m_DynLayout.AddItem(IDC_CUSTOM_FONT_FACE, GDIUT::CDynLayout::MoveHorz(50), GDIUT::CDynLayout::SizeHorzAndVert(50, 50));
+		m_DynLayout.AddItem(m_WndFontFamily, GDIUT::CDynLayout::MoveNone(), GDIUT::CDynLayout::SizeHorzAndVert(50, 50));
+		m_DynLayout.AddItem(m_WndFontFace, GDIUT::CDynLayout::MoveHorz(50), GDIUT::CDynLayout::SizeHorzAndVert(50, 50));
 		m_DynLayout.AddItem(IDC_COMBO_FONT_FAMILY, GDIUT::CDynLayout::MoveVert(50), GDIUT::CDynLayout::SizeNone());
-		m_DynLayout.AddItem(IDC_STATIC_TOTALFAMILIES, GDIUT::CDynLayout::MoveHorzAndVert(50, 50), GDIUT::CDynLayout::SizeNone());
+		m_DynLayout.AddItem(m_WndStatTotalFamilies, GDIUT::CDynLayout::MoveHorzAndVert(50, 50), GDIUT::CDynLayout::SizeNone());
 		m_DynLayout.AddItem(IDC_STATIC_TOTALFACES, GDIUT::CDynLayout::MoveHorzAndVert(100, 50), GDIUT::CDynLayout::SizeNone());
-		m_DynLayout.AddItem(IDC_CUSTOM_FONT_SAMPLE, GDIUT::CDynLayout::MoveVert(50), GDIUT::CDynLayout::SizeHorzAndVert(100, 50));
+		m_DynLayout.AddItem(m_WndFontSample, GDIUT::CDynLayout::MoveVert(50), GDIUT::CDynLayout::SizeHorzAndVert(100, 50));
 		m_DynLayout.AddItem(IDC_EDIT_FONT_SIZE, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
 		m_DynLayout.AddItem(IDC_STATIC_SIZE, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
 		m_DynLayout.AddItem(IDC_COMBO_FONT_WEIGHT, GDIUT::CDynLayout::MoveHorzAndVert(50, 100), GDIUT::CDynLayout::SizeNone());
@@ -3083,6 +3101,11 @@ namespace DWFONTCHOOSE {
 	{
 		m_fLMDownSize = false;
 		::ReleaseCapture();
+
+		if (m_SplitHorz.IsSplitting()) {
+			UpdateDynamicLayoutRatios();
+		}
+
 		m_SplitHorz.WMLButtonUp();
 		m_SplitVert.WMLButtonUp();
 		m_DynLayout.Enable(true);
@@ -3166,10 +3189,10 @@ namespace DWFONTCHOOSE {
 		const auto wHeight = HIWORD(msg.lParam);
 		m_DynLayout.OnSize(wWidth, wHeight);
 
-		const auto hWndST = GDIUT::CWnd(m_SampleText.GetHWND());
-		auto rcSTClient = hWndST.GetWindowRect();
-		m_Wnd.ScreenToClient(rcSTClient);
-		m_SplitHorz.SetMinMaxEdge(1, rcSTClient.right);
+		auto rcFSClient = m_WndFontSample.GetWindowRect();
+		m_Wnd.ScreenToClient(rcFSClient);
+		m_SplitHorz.SetEdges(1, rcFSClient.right);
+		m_Wnd.RedrawWindow(nullptr, nullptr, RDW_ERASE | RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);
 
 		return TRUE;
 	}
@@ -3272,6 +3295,17 @@ namespace DWFONTCHOOSE {
 			return lhs.wstrFamilyName < rhs.wstrFamilyName;	});
 	}
 
+	void CDWFontChooseDlg::UpdateDynamicLayoutRatios()
+	{
+		using GDIUT::CDynLayout;
+		const auto rcFamily = m_WndFontFamily.GetClientRect();
+		const auto rcSample = m_WndFontSample.GetClientRect();
+		const auto iFamilySizeH = std::lround(static_cast<float>(rcFamily.Width()) / rcSample.Width() * 100);
+		m_DynLayout.UpdateItem(m_WndFontFamily, CDynLayout::MoveNone(), CDynLayout::SizeHorzAndVert(iFamilySizeH, 50));
+		m_DynLayout.UpdateItem(m_WndStatTotalFamilies, CDynLayout::MoveHorzAndVert(iFamilySizeH, 50), CDynLayout::SizeNone());
+		m_DynLayout.UpdateItem(m_WndFontFace, CDynLayout::MoveHorz(iFamilySizeH), CDynLayout::SizeHorzAndVert(100 - iFamilySizeH, 50));
+	}
+
 	void CDWFontChooseDlg::UpdateFontFamiliesList()
 	{
 		m_FontFamilies.SetData(m_spnFFI);
@@ -3280,7 +3314,7 @@ namespace DWFONTCHOOSE {
 			SetStatTextFontFacesTotal(0);
 		}
 
-		GDIUT::CWnd(m_Wnd.GetDlgItem(IDC_STATIC_TOTALFAMILIES)).SetWndText(std::format(L"Total: {}", m_spnFFI.size()));
+		m_WndStatTotalFamilies.SetWndText(std::format(L"Total: {}", m_spnFFI.size()));
 	}
 
 	void CDWFontChooseDlg::UpdateSampleText()
