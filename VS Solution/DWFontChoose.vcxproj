@@ -177,6 +177,9 @@
   <ItemGroup>
     <Image Include="res\logo.ico" />
   </ItemGroup>
+  <ItemGroup>
+    <Manifest Include=".manifest" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

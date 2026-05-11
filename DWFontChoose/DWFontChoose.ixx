@@ -490,7 +490,7 @@ namespace DWFONTCHOOSE {
 			void Enable(bool fTrack);
 			bool LoadFromResource(HINSTANCE hInstRes, const wchar_t* pwszResName);
 			bool LoadFromResource(HINSTANCE hInstRes, UINT uResID);
-			void OnSize(int iWidth, int iHeight)const; //Should be hooked into the host window's WM_SIZE handler.
+			void WMSize(int iWidth, int iHeight)const; //Should be hooked into the host window's WM_SIZE handler.
 			void RemoveAll() { m_vecItems.clear(); }
 			void SetHost(HWND hWnd) { assert(hWnd != nullptr); m_hWndHost = hWnd; }
 			void UpdateItem(int iItemID, MoveRatio move, SizeRatio size);
@@ -610,7 +610,7 @@ namespace DWFONTCHOOSE {
 			return LoadFromResource(hInstRes, MAKEINTRESOURCEW(uResID));
 		}
 
-		void CDynLayout::OnSize(int iWidth, int iHeight)const {
+		void CDynLayout::WMSize(int iWidth, int iHeight)const {
 			if (!m_fTrack)
 				return;
 
@@ -1308,18 +1308,17 @@ namespace DWFONTCHOOSE {
 		void ItemSelect(UINT32 u32Item, bool fChangeHighlight);
 		void ItemSelectIncDec(UINT32 u32Items, bool fInc);
 		[[nodiscard]] bool IsDataSet()const;
-		auto OnEraseBkgnd(const MSG& msg) -> LRESULT;
-		auto OnGetDlgCode(const MSG& msg) -> LRESULT;
-		auto OnKeyDown(const MSG& msg) -> LRESULT;
-		auto OnLButtonDown(const MSG& msg) -> LRESULT;
-		auto OnMouseMove(const MSG& msg) -> LRESULT;
-		auto OnMouseWheel(const MSG& msg) -> LRESULT;
-		auto OnPaint() -> LRESULT;
-		auto OnSize(const MSG& msg) -> LRESULT;
-		auto OnVScroll(const MSG& msg) -> LRESULT;
 		[[nodiscard]] int PixelsFromDIP(float flDIP)const;
 		void RecalcScroll();
 		void ScrollLines(int iLines);
+		auto WMKeyDown(const MSG& msg) -> LRESULT;
+		auto WMLButtonDown(const MSG& msg) -> LRESULT;
+		auto WMMouseMove(const MSG& msg) -> LRESULT;
+		auto WMMouseWheel(const MSG& msg) -> LRESULT;
+		auto WMPaint() -> LRESULT;
+		auto WMSize(const MSG& msg) -> LRESULT;
+		auto WMVScroll(const MSG& msg) -> LRESULT;
+		auto WMDPIChangedAfterParent() -> LRESULT;
 		static auto CALLBACK SubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
 			UINT_PTR uIDSubclass, DWORD_PTR dwRefData)->LRESULT;
 	private:
@@ -1338,7 +1337,7 @@ namespace DWFONTCHOOSE {
 		DXUT::comptr<ID2D1SolidColorBrush> m_pD2DBrushLightGray;
 		DXUT::comptr<IDWriteTextFormat1> m_pDWTextFormatMain;
 		DXUT::comptr<IDWriteTextLayout1> m_pLayoutData;
-		DWFONTINFO m_tfi { .wstrFamilyName { L"Courier New" }, .wstrLocale { L"en-us" },
+		DWFONTINFO m_fi { .wstrFamilyName { L"Courier New" }, .wstrLocale { L"en-us" },
 			.flSizeDIP { m_flSizeFontMainDIP } };
 		std::span<DXUT::DWFONTFAMILYINFO> m_spnFFI;
 		float m_flDPIScale { 1.F }; //DPI scale factor for the window.
@@ -1401,7 +1400,7 @@ namespace DWFONTCHOOSE {
 		m_pD2DDeviceContext->CreateSolidColorBrush(D2D1::ColorF(0.9F, 0.9F, 0.9F), m_pD2DBrushLightGray);
 
 		//Text.
-		m_pDWTextFormatMain = DXUT::DWCreateTextFormat(m_tfi);
+		m_pDWTextFormatMain = DXUT::DWCreateTextFormat(m_fi);
 		m_pDWTextFormatMain->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
 		m_pDWTextFormatMain->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, GetLineSpacingDIP(), m_flBaseLineDIP);
 	}
@@ -1409,16 +1408,17 @@ namespace DWFONTCHOOSE {
 	auto CDWFontChooseEnum::ProcessMsg(const MSG& msg)->LRESULT
 	{
 		switch (msg.message) {
-		case WM_GETDLGCODE: return OnGetDlgCode(msg);
-		case WM_ERASEBKGND: return OnEraseBkgnd(msg);
-		case WM_SYSKEYDOWN:
-		case WM_KEYDOWN: return OnKeyDown(msg);
-		case WM_LBUTTONDOWN: return OnLButtonDown(msg);
-		case WM_MOUSEMOVE: return OnMouseMove(msg);
-		case WM_MOUSEWHEEL: return OnMouseWheel(msg);
-		case WM_PAINT: return OnPaint();
-		case WM_SIZE: return OnSize(msg);
-		case WM_VSCROLL: return OnVScroll(msg);
+		case WM_DPICHANGED_AFTERPARENT: return WMDPIChangedAfterParent();
+		case WM_ERASEBKGND: return TRUE;
+		case WM_GETDLGCODE: return DLGC_WANTALLKEYS;
+		case WM_KEYDOWN:
+		case WM_SYSKEYDOWN: return WMKeyDown(msg);
+		case WM_LBUTTONDOWN: return WMLButtonDown(msg);
+		case WM_MOUSEMOVE: return WMMouseMove(msg);
+		case WM_MOUSEWHEEL: return WMMouseWheel(msg);
+		case WM_PAINT: return WMPaint();
+		case WM_SIZE: return WMSize(msg);
+		case WM_VSCROLL: return WMVScroll(msg);
 		default: return GDIUT::DefWndProc(msg);
 		}
 	}
@@ -1469,6 +1469,8 @@ namespace DWFONTCHOOSE {
 		ItemSelect(0, true); //Select the very first item.
 	}
 
+
+	//Private methods.
 
 	template <typename T> requires std::is_arithmetic_v<T>
 	auto CDWFontChooseEnum::DIPFromPixels(T t)const->float {
@@ -1653,15 +1655,33 @@ namespace DWFONTCHOOSE {
 		return m_fDataSet;
 	}
 
-	auto CDWFontChooseEnum::OnEraseBkgnd([[maybe_unused]] const MSG& msg)->LRESULT {
-		return 1;
+	auto CDWFontChooseEnum::PixelsFromDIP(float flDIP)const->int {
+		return std::lround(flDIP * GetDPIScale());
 	}
 
-	auto CDWFontChooseEnum::OnGetDlgCode([[maybe_unused]] const MSG& msg)->LRESULT {
-		return DLGC_WANTALLKEYS;
+	void CDWFontChooseEnum::RecalcScroll()
+	{
+		if (!IsDataSet()) {
+			return;
+		}
+
+		DWRITE_TEXT_METRICS tm;
+		m_pLayoutData->GetMetrics(&tm);
+		const auto iMax = PixelsFromDIP(tm.height);
+		auto si = m_Wnd.GetScrollInfo(true);
+		si.nPos = (iMax > si.nPos) ? si.nPos : iMax;
+		si.nMax = iMax;
+		si.nPage = m_Wnd.GetClientRect().Height();
+		m_Wnd.SetScrollInfo(true, si);
 	}
 
-	auto CDWFontChooseEnum::OnKeyDown(const MSG& msg)->LRESULT
+	void CDWFontChooseEnum::ScrollLines(int iLines)
+	{
+		m_Wnd.SetScrollPos(true, GetScrollPosPx() + (iLines * GetLineHeightPx()));
+		m_Wnd.RedrawWindow();
+	}
+
+	auto CDWFontChooseEnum::WMKeyDown(const MSG& msg)->LRESULT
 	{
 		const auto wVKey = LOWORD(msg.wParam); //Virtual-key code (both: WM_KEYDOWN/WM_SYSKEYDOWN).
 
@@ -1691,7 +1711,7 @@ namespace DWFONTCHOOSE {
 		return 0;
 	}
 
-	auto CDWFontChooseEnum::OnLButtonDown(const MSG& msg)->LRESULT
+	auto CDWFontChooseEnum::WMLButtonDown(const MSG& msg)->LRESULT
 	{
 		const POINT pt { .x { ut::GetXLPARAM(msg.lParam) }, .y { ut::GetYLPARAM(msg.lParam) } };
 		m_Wnd.SetFocus();
@@ -1700,7 +1720,7 @@ namespace DWFONTCHOOSE {
 		return 0;
 	}
 
-	auto CDWFontChooseEnum::OnMouseMove(const MSG& msg)->LRESULT
+	auto CDWFontChooseEnum::WMMouseMove(const MSG& msg)->LRESULT
 	{
 		const POINT pt { .x { ut::GetXLPARAM(msg.lParam) }, .y { ut::GetYLPARAM(msg.lParam) } };
 		if (m_ptMouseCurr == pt) {
@@ -1713,7 +1733,7 @@ namespace DWFONTCHOOSE {
 		return 0;
 	}
 
-	auto CDWFontChooseEnum::OnMouseWheel(const MSG& msg)->LRESULT
+	auto CDWFontChooseEnum::WMMouseWheel(const MSG& msg)->LRESULT
 	{
 		const auto iDelta = GET_WHEEL_DELTA_WPARAM(msg.wParam);
 		ScrollLines(iDelta > 0 ? -2 : 2);
@@ -1721,13 +1741,11 @@ namespace DWFONTCHOOSE {
 		return 0;
 	}
 
-	auto CDWFontChooseEnum::OnPaint()->LRESULT
+	auto CDWFontChooseEnum::WMPaint()->LRESULT
 	{
 		::ValidateRect(m_Wnd, nullptr);
-
 		m_pD2DDeviceContext->BeginDraw();
 		m_pD2DDeviceContext->Clear(D2D1::ColorF(D2D1::ColorF::White));
-
 		if (!IsDataSet()) {
 			m_pD2DDeviceContext->EndDraw();
 			m_pDXGISwapChain->Present(0, 0);
@@ -1767,10 +1785,10 @@ namespace DWFONTCHOOSE {
 			const auto eWeight = static_cast<DWRITE_FONT_WEIGHT>(std::stoi(pFontFaceInfo->wstrWeight));
 			const auto eStretch = static_cast<DWRITE_FONT_STRETCH>(std::stoi(pFontFaceInfo->wstrStretch));
 			const auto eStyle = static_cast<DWRITE_FONT_STYLE>(std::stoi(pFontFaceInfo->wstrStyle));
-			const DWFONTINFO tfiSample { .wstrFamilyName { pFontInfo->wstrFamilyName },
+			const DWFONTINFO fiSample { .wstrFamilyName { pFontInfo->wstrFamilyName },
 				.wstrLocale { pFontInfo->wstrLocale }, .eWeight { eWeight }, .eStretch { eStretch }, .eStyle { eStyle },
 				.flSizeDIP { m_flSizeFontMainDIP * 1.5F } };
-			DXUT::comptr pFormatSample = DXUT::DWCreateTextFormat(tfiSample);
+			DXUT::comptr pFormatSample = DXUT::DWCreateTextFormat(fiSample);
 			pFormatSample->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
 			pFormatSample->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, GetLineSpacingDIP(), m_flBaseLineDIP);
 			const auto pLayoutSample = DXUT::DWCreateTextLayout(L"Sample", pFormatSample, 0, 0);
@@ -1784,7 +1802,7 @@ namespace DWFONTCHOOSE {
 		return 0;
 	}
 
-	auto CDWFontChooseEnum::OnSize(const MSG& msg)->LRESULT
+	auto CDWFontChooseEnum::WMSize(const MSG& msg)->LRESULT
 	{
 		if (!m_pDXGISwapChain) {
 			return 0;
@@ -1802,7 +1820,7 @@ namespace DWFONTCHOOSE {
 		return 0;
 	}
 
-	auto CDWFontChooseEnum::OnVScroll(const MSG& msg)->LRESULT
+	auto CDWFontChooseEnum::WMVScroll(const MSG& msg)->LRESULT
 	{
 		auto si = m_Wnd.GetScrollInfo(true);
 		switch (LOWORD(msg.wParam)) {
@@ -1838,30 +1856,14 @@ namespace DWFONTCHOOSE {
 		return 0;
 	}
 
-	auto CDWFontChooseEnum::PixelsFromDIP(float flDIP)const->int {
-		return std::lround(flDIP * GetDPIScale());
-	}
-
-	void CDWFontChooseEnum::RecalcScroll()
+	auto CDWFontChooseEnum::WMDPIChangedAfterParent()->LRESULT
 	{
-		if (!IsDataSet()) {
-			return;
-		}
+		const auto flDPI = static_cast<float>(::GetDpiForWindow(m_Wnd));
+		m_flDPIScale = flDPI / USER_DEFAULT_SCREEN_DPI;
+		m_pD2DDeviceContext->SetDpi(flDPI, flDPI);
+		RecalcScroll();
 
-		DWRITE_TEXT_METRICS tm;
-		m_pLayoutData->GetMetrics(&tm);
-		const auto iMax = PixelsFromDIP(tm.height);
-		auto si = m_Wnd.GetScrollInfo(true);
-		si.nPos = (iMax > si.nPos) ? si.nPos : iMax;
-		si.nMax = iMax;
-		si.nPage = m_Wnd.GetClientRect().Height();
-		m_Wnd.SetScrollInfo(true, si);
-	}
-
-	void CDWFontChooseEnum::ScrollLines(int iLines)
-	{
-		m_Wnd.SetScrollPos(true, GetScrollPosPx() + (iLines * GetLineHeightPx()));
-		m_Wnd.RedrawWindow();
+		return 0;
 	}
 
 	auto CDWFontChooseEnum::SubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
@@ -1901,10 +1903,6 @@ namespace DWFONTCHOOSE {
 		[[nodiscard]] auto GetDPIScale()const -> float;
 		[[nodiscard]] auto GetLineHeightDIP()const -> float;
 		[[nodiscard]] auto GetLineHeightPx()const -> UINT32;
-		auto OnChar(const MSG& msg) -> LRESULT;
-		auto OnEraseBkgnd(const MSG& msg) -> LRESULT;
-		auto OnGetDlgCode(const MSG& msg) -> LRESULT;
-		auto OnKeyDown(const MSG& msg) -> INT_PTR;
 		void OnKeyLeft();
 		void OnKeyRight();
 		void OnKeyUp();
@@ -1914,18 +1912,21 @@ namespace DWFONTCHOOSE {
 		void OnKeyBackspace();
 		void OnKeyHome();
 		void OnKeyEnd();
-		auto OnLButtonDblClk(const MSG& msg) -> INT_PTR;
-		auto OnLButtonDown(const MSG& msg) -> INT_PTR;
-		auto OnLButtonUp(const MSG& msg) -> INT_PTR;
-		auto OnMouseMove(const MSG& msg) -> INT_PTR;
-		auto OnMouseWheel(const MSG& msg) -> INT_PTR;
-		auto OnPaint() -> LRESULT;
-		auto OnSize(const MSG& msg) -> LRESULT;
-		auto OnVScroll(const MSG& msg) -> LRESULT;
 		[[nodiscard]] int PixelsFromDIP(float flDIP)const;
 		void RecalcScroll();
 		void RemoveSelected();
 		void SelectAll();
+		auto WMChar(const MSG& msg) -> LRESULT;
+		auto WMKeyDown(const MSG& msg) -> INT_PTR;
+		auto WMLButtonDblClk(const MSG& msg) -> INT_PTR;
+		auto WMLButtonDown(const MSG& msg) -> INT_PTR;
+		auto WMLButtonUp(const MSG& msg) -> INT_PTR;
+		auto WMMouseMove(const MSG& msg) -> INT_PTR;
+		auto WMMouseWheel(const MSG& msg) -> INT_PTR;
+		auto WMPaint() -> LRESULT;
+		auto WMSize(const MSG& msg) -> LRESULT;
+		auto WMVScroll(const MSG& msg) -> LRESULT;
+		auto WMDPIChangedAfterParent() -> LRESULT;
 		static auto CALLBACK SubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
 			UINT_PTR uIDSubclass, DWORD_PTR dwRefData)->LRESULT;
 	private:
@@ -2012,18 +2013,19 @@ namespace DWFONTCHOOSE {
 	auto CDWFontChooseSampleText::ProcessMsg(const MSG& msg)->LRESULT
 	{
 		switch (msg.message) {
-		case WM_CHAR: return OnChar(msg);
-		case WM_ERASEBKGND: return OnEraseBkgnd(msg);
-		case WM_GETDLGCODE: return OnGetDlgCode(msg);
-		case WM_KEYDOWN: return OnKeyDown(msg);
-		case WM_LBUTTONDBLCLK: return OnLButtonDblClk(msg);
-		case WM_LBUTTONDOWN: return OnLButtonDown(msg);
-		case WM_LBUTTONUP: return OnLButtonUp(msg);
-		case WM_MOUSEMOVE: return OnMouseMove(msg);
-		case WM_MOUSEWHEEL: return OnMouseWheel(msg);
-		case WM_PAINT: return OnPaint();
-		case WM_SIZE: return OnSize(msg);
-		case WM_VSCROLL: return OnVScroll(msg);
+		case WM_CHAR: return WMChar(msg);
+		case WM_DPICHANGED_AFTERPARENT: return WMDPIChangedAfterParent();
+		case WM_ERASEBKGND: return TRUE;
+		case WM_GETDLGCODE: return DLGC_WANTALLKEYS;
+		case WM_KEYDOWN: return WMKeyDown(msg);
+		case WM_LBUTTONDBLCLK: return WMLButtonDblClk(msg);
+		case WM_LBUTTONDOWN: return WMLButtonDown(msg);
+		case WM_LBUTTONUP: return WMLButtonUp(msg);
+		case WM_MOUSEMOVE: return WMMouseMove(msg);
+		case WM_MOUSEWHEEL: return WMMouseWheel(msg);
+		case WM_PAINT: return WMPaint();
+		case WM_SIZE: return WMSize(msg);
+		case WM_VSCROLL: return WMVScroll(msg);
 		default: return GDIUT::DefWndProc(msg);
 		}
 	}
@@ -2047,6 +2049,7 @@ namespace DWFONTCHOOSE {
 		m_Wnd.RedrawWindow();
 	}
 
+	//Private methods.
 
 	void CDWFontChooseSampleText::ClipboardCopy()const
 	{
@@ -2116,13 +2119,13 @@ namespace DWFONTCHOOSE {
 
 	void CDWFontChooseSampleText::CreateTextLayout()
 	{
-		const auto rcClient = m_Wnd.GetClientRect();
 		if (GetDataSize() > 1024) { //Trim the string to 1024 wchars.
 			m_wstrData.resize(1024);
 		}
 
+		const auto rcClient = m_Wnd.GetClientRect();
 		m_pLayoutData = DXUT::DWCreateTextLayout(m_wstrData, m_pTextFormat, DIPFromPixels(rcClient.Width()),
-			DIPFromPixels(rcClient.Height()));
+					DIPFromPixels(rcClient.Height()));
 		m_pLayoutData->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
 		m_pLayoutData->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
 
@@ -2183,87 +2186,6 @@ namespace DWFONTCHOOSE {
 
 	auto CDWFontChooseSampleText::GetLineHeightPx()const->UINT32 {
 		return PixelsFromDIP(GetLineHeightDIP());
-	}
-
-	auto CDWFontChooseSampleText::OnChar(const MSG& msg)->LRESULT
-	{
-		const auto wChar = LOWORD(msg.wParam); //LOWORD holds wchar_t symbol.
-		if ((::GetAsyncKeyState(VK_CONTROL) < 0) || !std::iswprint(wChar)) {
-			return 0;
-		}
-
-		RemoveSelected();
-		m_wstrData.insert(m_u32CaretPos++, 1, wChar);
-		CreateTextLayout();
-
-		return 0;
-	}
-
-	auto CDWFontChooseSampleText::OnEraseBkgnd([[maybe_unused]] const MSG& msg)->LRESULT {
-		return 1;
-	}
-
-	auto CDWFontChooseSampleText::OnGetDlgCode([[maybe_unused]] const MSG& msg)->LRESULT {
-		return DLGC_WANTALLKEYS;
-	}
-
-	auto CDWFontChooseSampleText::OnKeyDown(const MSG& msg)->LRESULT
-	{
-		const auto wVKey = LOWORD(msg.wParam); //Virtual-key code (both: WM_KEYDOWN/WM_SYSKEYDOWN).
-
-		if (::GetAsyncKeyState(VK_CONTROL) < 0) { //Ctrl+...
-			switch (wVKey) {
-			case 'A':
-				SelectAll();
-				break;
-			case 'C':
-				ClipboardCopy();
-				break;
-			case 'X':
-				ClipboardCut();
-				break;
-			case 'V':
-				ClipboardPaste();
-				break;
-			default:
-				break;
-			}
-		}
-		else {
-			switch (wVKey) {
-			case VK_BACK:
-				OnKeyBackspace();
-				break;
-			case VK_DELETE:
-				OnKeyDelete();
-				break;
-			case VK_RETURN:
-				OnKeyEnter();
-				break;
-			case VK_LEFT:
-				OnKeyLeft();
-				break;
-			case VK_RIGHT:
-				OnKeyRight();
-				break;
-			case VK_UP:
-				OnKeyUp();
-				break;
-			case VK_DOWN:
-				OnKeyDown();
-				break;
-			case VK_HOME:
-				OnKeyHome();
-				break;
-			case VK_END:
-				OnKeyEnd();
-				break;
-			default:
-				break;
-			}
-		}
-
-		return 0;
 	}
 
 	void CDWFontChooseSampleText::OnKeyLeft()
@@ -2388,7 +2310,117 @@ namespace DWFONTCHOOSE {
 		EnsureVisible(m_u32CaretPos = GetDataSize());
 	}
 
-	auto CDWFontChooseSampleText::OnLButtonDblClk(const MSG& msg)->INT_PTR
+	auto CDWFontChooseSampleText::PixelsFromDIP(float flDIP)const ->int {
+		return std::lround(flDIP * GetDPIScale());
+	}
+
+	void CDWFontChooseSampleText::RecalcScroll()
+	{
+		//It's important to SetMaxWidth BEFORE GetMetrics, as this primarily affects the tm.height results.
+		const auto rcClient = m_Wnd.GetClientRect();
+		m_pLayoutData->SetMaxWidth(DIPFromPixels(rcClient.Width()));
+		DWRITE_TEXT_METRICS tm;
+		m_pLayoutData->GetMetrics(&tm);
+		m_pLayoutData->SetMaxHeight((std::fmax)(tm.height, DIPFromPixels(rcClient.Height())));
+		const auto iMax = PixelsFromDIP(tm.height);
+		auto si = m_Wnd.GetScrollInfo(true);
+		si.nPos = (iMax > si.nPos) ? si.nPos : iMax;
+		si.nMax = iMax;
+		si.nPage = rcClient.Height();
+		m_Wnd.SetScrollInfo(true, si);
+	}
+
+	void CDWFontChooseSampleText::RemoveSelected()
+	{
+		if (m_u32SizeSel == 0)
+			return;
+
+		m_wstrData.erase(m_u32StartSel, m_u32SizeSel);
+		m_u32CaretPos = m_u32StartSel;
+		m_u32StartSel = m_u32SizeSel = 0;
+	}
+
+	void CDWFontChooseSampleText::SelectAll()
+	{
+		m_u32StartSel = 0;
+		m_u32SizeSel = GetDataSize();
+		m_Wnd.RedrawWindow();
+	}
+
+	auto CDWFontChooseSampleText::WMChar(const MSG& msg)->LRESULT
+	{
+		const auto wChar = LOWORD(msg.wParam); //LOWORD holds wchar_t symbol.
+		if ((::GetAsyncKeyState(VK_CONTROL) < 0) || !std::iswprint(wChar)) {
+			return 0;
+		}
+
+		RemoveSelected();
+		m_wstrData.insert(m_u32CaretPos++, 1, wChar);
+		CreateTextLayout();
+
+		return 0;
+	}
+
+	auto CDWFontChooseSampleText::WMKeyDown(const MSG& msg)->LRESULT
+	{
+		const auto wVKey = LOWORD(msg.wParam); //Virtual-key code (both: WM_KEYDOWN/WM_SYSKEYDOWN).
+
+		if (::GetAsyncKeyState(VK_CONTROL) < 0) { //Ctrl+...
+			switch (wVKey) {
+			case 'A':
+				SelectAll();
+				break;
+			case 'C':
+				ClipboardCopy();
+				break;
+			case 'X':
+				ClipboardCut();
+				break;
+			case 'V':
+				ClipboardPaste();
+				break;
+			default:
+				break;
+			}
+		}
+		else {
+			switch (wVKey) {
+			case VK_BACK:
+				OnKeyBackspace();
+				break;
+			case VK_DELETE:
+				OnKeyDelete();
+				break;
+			case VK_RETURN:
+				OnKeyEnter();
+				break;
+			case VK_LEFT:
+				OnKeyLeft();
+				break;
+			case VK_RIGHT:
+				OnKeyRight();
+				break;
+			case VK_UP:
+				OnKeyUp();
+				break;
+			case VK_DOWN:
+				OnKeyDown();
+				break;
+			case VK_HOME:
+				OnKeyHome();
+				break;
+			case VK_END:
+				OnKeyEnd();
+				break;
+			default:
+				break;
+			}
+		}
+
+		return 0;
+	}
+
+	auto CDWFontChooseSampleText::WMLButtonDblClk(const MSG& msg)->INT_PTR
 	{
 		if (!m_pLayoutData) { return 0; }
 
@@ -2418,7 +2450,7 @@ namespace DWFONTCHOOSE {
 		return 0;
 	}
 
-	auto CDWFontChooseSampleText::OnLButtonDown([[maybe_unused]] const MSG& msg)->LRESULT
+	auto CDWFontChooseSampleText::WMLButtonDown([[maybe_unused]] const MSG& msg)->LRESULT
 	{
 		if (!m_pLayoutData) { return 0; }
 
@@ -2438,7 +2470,7 @@ namespace DWFONTCHOOSE {
 		return 0;
 	}
 
-	auto CDWFontChooseSampleText::OnLButtonUp([[maybe_unused]] const MSG& msg)->LRESULT
+	auto CDWFontChooseSampleText::WMLButtonUp([[maybe_unused]] const MSG& msg)->LRESULT
 	{
 		m_fLMDown = false;
 		::ReleaseCapture();
@@ -2446,7 +2478,7 @@ namespace DWFONTCHOOSE {
 		return TRUE;
 	}
 
-	auto CDWFontChooseSampleText::OnMouseMove(const MSG& msg)->LRESULT
+	auto CDWFontChooseSampleText::WMMouseMove(const MSG& msg)->LRESULT
 	{
 		if (!m_fLMDown || !m_pLayoutData) { return 0; }
 
@@ -2476,7 +2508,7 @@ namespace DWFONTCHOOSE {
 		return 0;
 	}
 
-	auto CDWFontChooseSampleText::OnMouseWheel(const MSG& msg)->LRESULT
+	auto CDWFontChooseSampleText::WMMouseWheel(const MSG& msg)->LRESULT
 	{
 		const auto iDelta = GET_WHEEL_DELTA_WPARAM(msg.wParam);
 
@@ -2495,7 +2527,7 @@ namespace DWFONTCHOOSE {
 		return 0;
 	}
 
-	auto CDWFontChooseSampleText::OnPaint()->LRESULT
+	auto CDWFontChooseSampleText::WMPaint()->LRESULT
 	{
 		::ValidateRect(m_Wnd, nullptr);
 		m_pD2DDeviceContext->BeginDraw();
@@ -2533,7 +2565,7 @@ namespace DWFONTCHOOSE {
 		return 0;
 	}
 
-	auto CDWFontChooseSampleText::OnSize(const MSG& msg)->LRESULT
+	auto CDWFontChooseSampleText::WMSize(const MSG& msg)->LRESULT
 	{
 		if (!m_pDXGISwapChain) {
 			return 0;
@@ -2546,18 +2578,12 @@ namespace DWFONTCHOOSE {
 		m_pDXGISwapChain->ResizeBuffers(0, wWidth, wHeight, DXGI_FORMAT_UNKNOWN, 0);
 		m_pD2DTargetBitmap = DXUT::D2DCreateBitmapFromDxgiSurface(m_pD2DDeviceContext, m_pDXGISwapChain);
 		m_pD2DDeviceContext->SetTarget(m_pD2DTargetBitmap);
-
-		if (!m_pLayoutData) {
-			return 0;
-		}
-
-		m_pLayoutData->SetMaxWidth(DIPFromPixels(wWidth));
 		RecalcScroll();
 
 		return 0;
 	}
 
-	auto CDWFontChooseSampleText::OnVScroll(const MSG& msg)->LRESULT
+	auto CDWFontChooseSampleText::WMVScroll(const MSG& msg)->LRESULT
 	{
 		auto si = m_Wnd.GetScrollInfo(true);
 		switch (LOWORD(msg.wParam)) {
@@ -2593,39 +2619,14 @@ namespace DWFONTCHOOSE {
 		return 0;
 	}
 
-	auto CDWFontChooseSampleText::PixelsFromDIP(float flDIP)const ->int {
-		return std::lround(flDIP * GetDPIScale());
-	}
-
-	void CDWFontChooseSampleText::RecalcScroll()
+	auto CDWFontChooseSampleText::WMDPIChangedAfterParent()->LRESULT
 	{
-		DWRITE_TEXT_METRICS tm;
-		m_pLayoutData->GetMetrics(&tm);
-		const auto rcClient = m_Wnd.GetClientRect();
-		m_pLayoutData->SetMaxHeight((std::max)(tm.height, DIPFromPixels(rcClient.Height())));
-		const auto iMax = PixelsFromDIP(tm.height);
-		auto si = m_Wnd.GetScrollInfo(true);
-		si.nPos = (iMax > si.nPos) ? si.nPos : iMax;
-		si.nMax = iMax;
-		si.nPage = rcClient.Height();
-		m_Wnd.SetScrollInfo(true, si);
-	}
+		const auto flDPI = static_cast<float>(::GetDpiForWindow(m_Wnd));
+		m_flDPIScale = flDPI / USER_DEFAULT_SCREEN_DPI;
+		m_pD2DDeviceContext->SetDpi(flDPI, flDPI);
+		RecalcScroll();
 
-	void CDWFontChooseSampleText::RemoveSelected()
-	{
-		if (m_u32SizeSel == 0)
-			return;
-
-		m_wstrData.erase(m_u32StartSel, m_u32SizeSel);
-		m_u32CaretPos = m_u32StartSel;
-		m_u32StartSel = m_u32SizeSel = 0;
-	}
-
-	void CDWFontChooseSampleText::SelectAll()
-	{
-		m_u32StartSel = 0;
-		m_u32SizeSel = GetDataSize();
-		m_Wnd.RedrawWindow();
+		return 0;
 	}
 
 	auto CDWFontChooseSampleText::SubclassProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam,
@@ -2658,19 +2659,9 @@ namespace DWFONTCHOOSE {
 		void OnCommandComboFontFamilies();
 		void OnCheckStrikethrough();
 		void OnCheckUnderline();
-		auto OnCommand(const MSG& msg) -> INT_PTR;
 		void OnCommandCombo(DWORD dwCtrlID, DWORD dwCode);
 		void OnCommandEdit(DWORD dwCtrlID, DWORD dwCode);
-		auto OnCtlClrStatic(const MSG& msg) -> INT_PTR;
-		auto OnDestroy() -> INT_PTR;
-		auto OnInitDialog(const MSG& msg) -> INT_PTR;
-		auto OnLButtonDown(const MSG& msg) -> INT_PTR;
-		auto OnLButtonUp(const MSG& msg) -> INT_PTR;
-		auto OnMouseMove(const MSG& msg) -> INT_PTR;
-		auto OnNotify(const MSG& msg) -> INT_PTR;
 		void OnOK();
-		auto OnSetCursor() -> INT_PTR;
-		auto OnSize(const MSG& msg) -> INT_PTR;
 		void SetComboWeightSel(DWORD_PTR dwWeight);
 		void SetComboStretchSel(DWORD_PTR dwStretch);
 		void SetComboStyleSel(DWORD_PTR dwStyle);
@@ -2681,6 +2672,18 @@ namespace DWFONTCHOOSE {
 		void UpdateDynamicLayoutRatios();
 		void UpdateFontFamiliesList();
 		void UpdateSampleText();
+		auto WMCommand(const MSG& msg) -> INT_PTR;
+		auto WMCtlClrStatic(const MSG& msg) -> INT_PTR;
+		auto WMDestroy() -> INT_PTR;
+		auto WMInitDialog(const MSG& msg) -> INT_PTR;
+		auto WMLButtonDown(const MSG& msg) -> INT_PTR;
+		auto WMLButtonUp(const MSG& msg) -> INT_PTR;
+		auto WMMouseMove(const MSG& msg) -> INT_PTR;
+		auto WMNotify(const MSG& msg) -> INT_PTR;
+		auto WMSetCursor() -> INT_PTR;
+		auto WMSize(const MSG& msg) -> INT_PTR;
+		auto WMDPIChanged(const MSG& msg) -> INT_PTR;
+		auto WMGetDPIScaledSize(const MSG& msg) -> INT_PTR;
 	private:
 		static constexpr int m_arrIDsFaceProps[] = { IDC_STATIC_GRP_FACE_PROPS,
 			IDC_STATIC_FAM_NAME, IDC_STATIC_FAM_NAME_DATA, IDC_STATIC_TYPO_FAM_NAME,
@@ -2696,7 +2699,7 @@ namespace DWFONTCHOOSE {
 		CDWFontChooseEnum m_FontFaces;
 		CDWFontChooseSampleText m_SampleText;
 		DWFONTCHOOSEINFO m_fci;
-		DWFONTINFO m_FI;
+		DWFONTINFO m_fi;
 		std::vector<DXUT::DWFONTFAMILYINFO> m_vecFonts;
 		std::span<DXUT::DWFONTFAMILYINFO> m_spnFFI;
 		GDIUT::CSplitter m_SplitHorz;
@@ -2729,24 +2732,25 @@ namespace DWFONTCHOOSE {
 	}
 
 	auto CDWFontChooseDlg::GetData()->const DWFONTINFO& {
-		return m_FI;
+		return m_fi;
 	}
 
 	auto CDWFontChooseDlg::ProcessMsg(const MSG& msg)->INT_PTR
 	{
 		switch (msg.message) {
-		case WM_COMMAND: return OnCommand(msg);
-		case WM_CTLCOLORSTATIC: return OnCtlClrStatic(msg);
-		case WM_DESTROY: return OnDestroy();
-		case WM_INITDIALOG: return OnInitDialog(msg);
-		case WM_LBUTTONDOWN: return OnLButtonDown(msg);
-		case WM_LBUTTONUP: return OnLButtonUp(msg);
-		case WM_MOUSEMOVE: return OnMouseMove(msg);
-		case WM_NOTIFY: return OnNotify(msg);
-		case WM_SETCURSOR: return OnSetCursor();
-		case WM_SIZE: return OnSize(msg);
-		default:
-			return 0;
+		case WM_COMMAND: return WMCommand(msg);
+		case WM_CTLCOLORSTATIC: return WMCtlClrStatic(msg);
+		case WM_DESTROY: return WMDestroy();
+		case WM_DPICHANGED: return WMDPIChanged(msg);
+		case WM_GETDPISCALEDSIZE: return WMGetDPIScaledSize(msg);
+		case WM_INITDIALOG: return WMInitDialog(msg);
+		case WM_LBUTTONDOWN: return WMLButtonDown(msg);
+		case WM_LBUTTONUP: return WMLButtonUp(msg);
+		case WM_MOUSEMOVE: return WMMouseMove(msg);
+		case WM_NOTIFY: return WMNotify(msg);
+		case WM_SETCURSOR: return WMSetCursor();
+		case WM_SIZE: return WMSize(msg);
+		default: return 0;
 		}
 	}
 
@@ -2859,7 +2863,7 @@ namespace DWFONTCHOOSE {
 			.eStretch { eStretch }, .eStyle { eStyle }, .flSizeDIP { flSizeDIP } };
 	}
 
-	auto CDWFontChooseDlg::OnCommand(const MSG& msg)->INT_PTR
+	auto CDWFontChooseDlg::WMCommand(const MSG& msg)->INT_PTR
 	{
 		const auto uCtrlID = LOWORD(msg.wParam);
 		const auto uCode = HIWORD(msg.wParam); //Control code, zero for menu.
@@ -2922,7 +2926,7 @@ namespace DWFONTCHOOSE {
 		}
 	}
 
-	auto CDWFontChooseDlg::OnCtlClrStatic(const MSG& msg) -> INT_PTR
+	auto CDWFontChooseDlg::WMCtlClrStatic(const MSG& msg) -> INT_PTR
 	{
 		static constexpr int arrIDsData[] = { IDC_STATIC_FAM_NAME_DATA, IDC_STATIC_TYPO_FAM_NAME_DATA,
 			IDC_STATIC_W_S_S_FACE_NAME_DATA, IDC_STATIC_FULL_NAME_DATA, IDC_STATIC_WIN32_FAM_NAME_DATA,
@@ -2942,13 +2946,13 @@ namespace DWFONTCHOOSE {
 		return FALSE;
 	}
 
-	auto CDWFontChooseDlg::OnDestroy()->INT_PTR
+	auto CDWFontChooseDlg::WMDestroy()->INT_PTR
 	{
 		m_vecFonts.clear();
 		return TRUE;
 	};
 
-	auto CDWFontChooseDlg::OnInitDialog(const MSG& msg)->INT_PTR
+	auto CDWFontChooseDlg::WMInitDialog(const MSG& msg)->INT_PTR
 	{
 		m_Wnd.Attach(msg.hwnd);
 		m_WndFontFamily.Attach(m_Wnd.GetDlgItem(IDC_CUSTOM_FONT_FAMILY));
@@ -3076,7 +3080,7 @@ namespace DWFONTCHOOSE {
 		return TRUE;
 	}
 
-	auto CDWFontChooseDlg::OnLButtonDown(const MSG& msg)->LRESULT
+	auto CDWFontChooseDlg::WMLButtonDown(const MSG& msg)->LRESULT
 	{
 		const POINT pt { .x { ut::GetXLPARAM(msg.lParam) }, .y { ut::GetYLPARAM(msg.lParam) } };
 		auto rcStatSize = m_WndStatSize.GetWindowRect();
@@ -3097,7 +3101,7 @@ namespace DWFONTCHOOSE {
 		return TRUE;
 	}
 
-	auto CDWFontChooseDlg::OnLButtonUp([[maybe_unused]] const MSG& msg)->LRESULT
+	auto CDWFontChooseDlg::WMLButtonUp([[maybe_unused]] const MSG& msg)->LRESULT
 	{
 		m_fLMDownSize = false;
 		::ReleaseCapture();
@@ -3113,7 +3117,7 @@ namespace DWFONTCHOOSE {
 		return TRUE;
 	}
 
-	auto CDWFontChooseDlg::OnMouseMove(const MSG& msg)->LRESULT
+	auto CDWFontChooseDlg::WMMouseMove(const MSG& msg)->LRESULT
 	{
 		const POINT pt { .x { ut::GetXLPARAM(msg.lParam) }, .y { ut::GetYLPARAM(msg.lParam) } };
 		auto rcStatSize = m_WndStatSize.GetWindowRect();
@@ -3131,7 +3135,7 @@ namespace DWFONTCHOOSE {
 		return TRUE;
 	}
 
-	auto CDWFontChooseDlg::OnNotify(const MSG& msg)->INT_PTR
+	auto CDWFontChooseDlg::WMNotify(const MSG& msg)->INT_PTR
 	{
 		const auto pFC = reinterpret_cast<FONTCHOOSE*>(msg.lParam);
 		const auto pNMHDR = &pFC->hdr;
@@ -3168,11 +3172,11 @@ namespace DWFONTCHOOSE {
 
 	void CDWFontChooseDlg::OnOK()
 	{
-		m_FI = GetFontInfo();
+		m_fi = GetFontInfo();
 		m_Wnd.EndDialog(IDOK);
 	}
 
-	auto CDWFontChooseDlg::OnSetCursor()->INT_PTR
+	auto CDWFontChooseDlg::WMSetCursor()->INT_PTR
 	{
 		if (m_fCurResize) {
 			static const auto hCurResize = static_cast<HCURSOR>(::LoadImageW(nullptr, IDC_SIZEWE, IMAGE_CURSOR, 0, 0, LR_SHARED));
@@ -3183,11 +3187,11 @@ namespace DWFONTCHOOSE {
 		return 0; //Default cursor.
 	}
 
-	auto CDWFontChooseDlg::OnSize(const MSG& msg)->LRESULT
+	auto CDWFontChooseDlg::WMSize(const MSG& msg)->LRESULT
 	{
 		const auto wWidth = LOWORD(msg.lParam);
 		const auto wHeight = HIWORD(msg.lParam);
-		m_DynLayout.OnSize(wWidth, wHeight);
+		m_DynLayout.WMSize(wWidth, wHeight);
 
 		auto rcFSClient = m_WndFontSample.GetWindowRect();
 		m_Wnd.ScreenToClient(rcFSClient);
@@ -3324,6 +3328,18 @@ namespace DWFONTCHOOSE {
 		}
 
 		m_SampleText.SetFontInfo(GetFontInfo());
+	}
+
+	auto CDWFontChooseDlg::WMDPIChanged([[maybe_unused]] const MSG& msg)->INT_PTR
+	{
+		m_DynLayout.Enable(true);
+		return 0;
+	}
+
+	auto CDWFontChooseDlg::WMGetDPIScaledSize([[maybe_unused]] const MSG& msg)->INT_PTR
+	{
+		m_DynLayout.Enable(false);
+		return 0;
 	}
 
 	export [[nodiscard]] auto DWFontChoose(const DWFONTCHOOSE::DWFONTCHOOSEINFO& fci) -> std::optional<DWFONTCHOOSE::DWFONTINFO> {
