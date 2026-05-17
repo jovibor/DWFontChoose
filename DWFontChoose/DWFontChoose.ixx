@@ -173,9 +173,9 @@ namespace DWFONTCHOOSE {
 			~CPoint() = default;
 			operator LPPOINT() { return this; }
 			operator const POINT*()const { return this; }
-			bool operator==(CPoint rhs)const { return x == rhs.x && y == rhs.y; }
-			bool operator==(POINT pt)const { return x == pt.x && y == pt.y; }
-			friend bool operator==(POINT pt, CPoint rhs) { return rhs == pt; }
+			[[nodiscard]] bool operator==(CPoint rhs)const { return x == rhs.x && y == rhs.y; }
+			[[nodiscard]] bool operator==(POINT rhs)const { return x == rhs.x && y == rhs.y; }
+			[[nodiscard]] friend bool operator==(POINT lhs, CPoint rhs) { return rhs == lhs; }
 			CPoint operator+(POINT pt)const { return { x + pt.x, y + pt.y }; }
 			CPoint operator-(POINT pt)const { return { x - pt.x, y - pt.y }; }
 			void Offset(int iX, int iY) { x += iX; y += iY; }
@@ -186,23 +186,21 @@ namespace DWFONTCHOOSE {
 		public:
 			CRect() : RECT { } { }
 			CRect(int iLeft, int iTop, int iRight, int iBottom) : RECT { .left { iLeft }, .top { iTop },
-				.right { iRight }, .bottom { iBottom } }
-			{ }
-			CRect(RECT rc) { ::CopyRect(this, &rc); }
+				.right { iRight }, .bottom { iBottom } } { }
+			CRect(const RECT& rc) { ::CopyRect(this, &rc); }
 			CRect(LPCRECT pRC) { ::CopyRect(this, pRC); }
 			CRect(POINT pt, SIZE size) : RECT { .left { pt.x }, .top { pt.y }, .right { pt.x + size.cx },
-				.bottom { pt.y + size.cy } }
-			{ }
+				.bottom { pt.y + size.cy } } { }
 			CRect(POINT topLeft, POINT botRight) : RECT { .left { topLeft.x }, .top { topLeft.y },
-				.right { botRight.x }, .bottom { botRight.y } }
-			{ }
+				.right { botRight.x }, .bottom { botRight.y } } { }
 			~CRect() = default;
 			operator LPRECT() { return this; }
 			operator LPCRECT()const { return this; }
-			bool operator==(CRect rhs)const { return ::EqualRect(this, rhs); }
-			bool operator==(RECT rc)const { return ::EqualRect(this, &rc); }
-			friend bool operator==(RECT rc, CRect rhs) { return rhs == rc; }
-			CRect& operator=(RECT rc) { ::CopyRect(this, &rc); return *this; }
+			[[nodiscard]] bool operator==(const CRect& rhs)const { return ::EqualRect(this, rhs); }
+			[[nodiscard]] bool operator==(const RECT& rhs)const { return ::EqualRect(this, &rhs); }
+			[[nodiscard]] friend bool operator==(const RECT& lhs, const CRect& rhs) { return rhs == lhs; }
+			CRect& operator=(const RECT& rhs) { ::CopyRect(this, &rhs); return *this; }
+			CRect& operator=(const CRect& rhs) { ::CopyRect(this, &rhs); return *this; }
 			[[nodiscard]] auto BottomRight()const -> CPoint { return { { .x { right }, .y { bottom } } }; };
 			void DeflateRect(int x, int y) { ::InflateRect(this, -x, -y); }
 			void DeflateRect(SIZE size) { ::InflateRect(this, -size.cx, -size.cy); }
@@ -656,11 +654,11 @@ namespace DWFONTCHOOSE {
 			CWnd() = default;
 			CWnd(HWND hWnd) { Attach(hWnd); }
 			~CWnd() = default;
-			CWnd& operator=(CWnd) = delete;
-			CWnd& operator=(HWND) = delete;
+			CWnd& operator=(HWND rhs) { Attach(rhs); return *this; };
+			CWnd& operator=(CWnd rhs) { Attach(rhs); return *this; };
 			operator HWND()const { return m_hWnd; }
-			[[nodiscard]] bool operator==(const CWnd& rhs)const { return m_hWnd == rhs.m_hWnd; }
-			[[nodiscard]] bool operator==(HWND hWnd)const { return m_hWnd == hWnd; }
+			[[nodiscard]] bool operator==(CWnd rhs)const { return m_hWnd == rhs.m_hWnd; }
+			[[nodiscard]] bool operator==(HWND rhs)const { return m_hWnd == rhs; }
 			void Attach(HWND hWnd) { m_hWnd = hWnd; } //Can attach to nullptr as well.
 			void CheckRadioButton(int iIDFirst, int iIDLast, int iIDCheck)const {
 				assert(IsWindow()); ::CheckRadioButton(m_hWnd, iIDFirst, iIDLast, iIDCheck);
@@ -688,7 +686,7 @@ namespace DWFONTCHOOSE {
 			[[nodiscard]] int GetDlgCtrlID()const { assert(IsWindow()); return ::GetDlgCtrlID(m_hWnd); }
 			[[nodiscard]] auto GetDlgItem(int iIDCtrl)const -> CWnd { assert(IsWindow()); return ::GetDlgItem(m_hWnd, iIDCtrl); }
 			[[nodiscard]] auto GetHFont()const -> HFONT {
-				assert(IsWindow()); return reinterpret_cast<HFONT>(::SendMessageW(m_hWnd, WM_GETFONT, 0, 0));
+				assert(IsWindow()); return reinterpret_cast<HFONT>(SendMsg(WM_GETFONT, 0, 0));
 			}
 			[[nodiscard]] auto GetHWND()const -> HWND { return m_hWnd; }
 			[[nodiscard]] auto GetLogFont()const -> std::optional<LOGFONTW> {
@@ -766,9 +764,8 @@ namespace DWFONTCHOOSE {
 			}
 			void SetWndText(LPCWSTR pwszStr)const { assert(IsWindow()); ::SetWindowTextW(m_hWnd, pwszStr); }
 			void SetWndText(const std::wstring& wstr)const { SetWndText(wstr.data()); }
-			void SetRedraw(bool fRedraw)const { assert(IsWindow()); ::SendMessageW(m_hWnd, WM_SETREDRAW, fRedraw, 0); }
+			void SetRedraw(bool fRedraw)const { assert(IsWindow()); SendMsg(WM_SETREDRAW, fRedraw, 0); }
 			bool ShowWindow(int iCmdShow)const { assert(IsWindow()); return ::ShowWindow(m_hWnd, iCmdShow); }
-			[[nodiscard]] static auto FromHandle(HWND hWnd) -> CWnd { return hWnd; }
 			[[nodiscard]] static auto GetFocus() -> CWnd { return ::GetFocus(); }
 		protected:
 			HWND m_hWnd { }; //Windows window handle.
@@ -1325,10 +1322,10 @@ namespace DWFONTCHOOSE {
 	private:
 		static constexpr auto m_pwszClassName { L"DWFontChooseFontEnum" };
 		static constexpr auto m_flSizeFontMainDIP { 12.F };
-		static constexpr auto m_flLineSpacingDIP { m_flSizeFontMainDIP * 2.F };
+		static constexpr auto m_flLineSpacingDIP { m_flSizeFontMainDIP * 2.F }; //Text line height.
 		static constexpr auto m_flBaseLineDIP { m_flLineSpacingDIP * 0.7F };
 		GDIUT::CWnd m_Wnd;
-		GDIUT::CPoint m_ptMouseCurr; //Current mouse pos to avoid spurious WM_MOUSEMOVE msgs.
+		GDIUT::CPoint m_ptMouseCurr; //Current mouse position, to avoid spurious WM_MOUSEMOVE msgs.
 		DXUT::comptr<ID2D1Device> m_pD2DDevice;
 		DXUT::comptr<ID2D1DeviceContext> m_pD2DDeviceContext;
 		DXUT::comptr<IDXGISwapChain1> m_pDXGISwapChain;
@@ -1337,13 +1334,10 @@ namespace DWFONTCHOOSE {
 		DXUT::comptr<ID2D1SolidColorBrush> m_pD2DBrushGray;
 		DXUT::comptr<ID2D1SolidColorBrush> m_pD2DBrushLightGray;
 		DXUT::comptr<IDWriteTextFormat1> m_pDWTextFormatMain;
-		DWFONTINFO m_fi { .wstrFamilyName { L"Courier New" }, .wstrLocale { L"en-us" },
-			.flSizeDIP { m_flSizeFontMainDIP } };
 		std::span<FONTDATA> m_spnFD;
-		float m_flDPIScale { 1.F }; //DPI scale factor for the window.
+		float m_flDPIScale { }; //DPI scale factor for the window.
 		UINT32 m_u32ItemSelected { };
 		UINT32 m_u32ItemHighlighted { };
-		bool m_fDataSet { false };
 	};
 
 	CDWFontChooseList::CDWFontChooseList()
@@ -1397,7 +1391,8 @@ namespace DWFONTCHOOSE {
 		m_pD2DDeviceContext->CreateSolidColorBrush(D2D1::ColorF(0.9F, 0.9F, 0.9F), m_pD2DBrushLightGray);
 
 		//Text.
-		m_pDWTextFormatMain = DXUT::DWCreateTextFormat(m_fi);
+		m_pDWTextFormatMain = DXUT::DWCreateTextFormat({ .wstrFamilyName { L"Courier New" },
+			.wstrLocale { L"en-us" }, .flSizeDIP { m_flSizeFontMainDIP } });
 		m_pDWTextFormatMain->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
 		m_pDWTextFormatMain->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, GetLineSpacingDIP(), m_flBaseLineDIP);
 	}
@@ -1428,20 +1423,14 @@ namespace DWFONTCHOOSE {
 	void CDWFontChooseList::SetData(std::span<FONTDATA> spnFD)
 	{
 		assert(m_Wnd.IsWindow());
-
 		m_spnFD = spnFD;
-		if (m_spnFD.empty()) {
-			m_fDataSet = false;
-			RecalcScroll();
-			m_Wnd.RedrawWindow();
-			return;
-		}
-
 		m_u32ItemHighlighted = 0; //Highlight first line on data set.
-		m_fDataSet = true;
 		RecalcScroll();
 		m_Wnd.RedrawWindow();
-		ItemSelect(0, true); //Select the very first item.
+
+		if (IsDataSet()) {
+			ItemSelect(0, true); //Select the very first item.
+		}
 	}
 
 
@@ -1573,7 +1562,7 @@ namespace DWFONTCHOOSE {
 	}
 
 	bool CDWFontChooseList::IsDataSet()const {
-		return m_fDataSet;
+		return !m_spnFD.empty();
 	}
 
 	auto CDWFontChooseList::PixelsFromDIP(float flDIP)const->int {
@@ -1841,7 +1830,6 @@ namespace DWFONTCHOOSE {
 			UINT_PTR uIDSubclass, DWORD_PTR dwRefData)->LRESULT;
 	private:
 		static constexpr auto m_pwszClassName { L"DWFontChooseSampleText" };
-		static constexpr auto m_flSizeFontMainDIP { 20.F };
 		GDIUT::CWnd m_Wnd;
 		DXUT::comptr<ID2D1Device> m_pD2DDevice;
 		DXUT::comptr<ID2D1DeviceContext> m_pD2DDeviceContext;
@@ -1852,14 +1840,14 @@ namespace DWFONTCHOOSE {
 		DXUT::comptr<ID2D1SolidColorBrush> m_pD2DBrushWhite;
 		DXUT::comptr<IDWriteTextFormat1> m_pTextFormat;
 		DXUT::comptr<IDWriteTextLayout1> m_pLayoutData;
-		DXUT::CTextEffect m_effSelect;
 		DXUT::CDWriteTextRenderer m_D2DTextRenderer;
 		DXUT::CTextEffect m_effSelection;
 		std::wstring m_wstrData { L"The quick brown fox jumps over the lazy dog." };
 		UINT32 m_u32CaretPos { 0xFFFFFFFFU };
-		UINT32 m_u32StartSel { };
-		UINT32 m_u32SizeSel { };
-		float m_flDPIScale { 1.F }; //DPI scale factor for the window.
+		UINT32 m_u32SelClick { };
+		UINT32 m_u32SelStart { };
+		UINT32 m_u32SelSize { };
+		float m_flDPIScale { }; //DPI scale factor for the window.
 		float m_flLineHeightDIP { };
 		bool m_fLMDown { };
 		bool m_fIsUnderline { false };
@@ -1962,10 +1950,10 @@ namespace DWFONTCHOOSE {
 
 	void CDWFontChooseSampleText::ClipboardCopy()const
 	{
-		if (m_u32SizeSel == 0)
+		if (m_u32SelSize == 0)
 			return;
 
-		const auto wstr = m_wstrData.substr(m_u32StartSel, m_u32SizeSel);
+		const auto wstr = m_wstrData.substr(m_u32SelStart, m_u32SelSize);
 		const auto sSize = (wstr.size() + 1) * sizeof(wchar_t);
 		const auto hMem = ::GlobalAlloc(GMEM_MOVEABLE, sSize);
 		if (!hMem) {
@@ -1993,7 +1981,7 @@ namespace DWFONTCHOOSE {
 
 	void CDWFontChooseSampleText::ClipboardCut()
 	{
-		if (m_u32SizeSel == 0)
+		if (m_u32SelSize == 0)
 			return;
 
 		ClipboardCopy();
@@ -2033,8 +2021,8 @@ namespace DWFONTCHOOSE {
 		}
 
 		const auto rcClient = m_Wnd.GetClientRect();
-		m_pLayoutData = DXUT::DWCreateTextLayout(m_wstrData, m_pTextFormat, DIPFromPixels(rcClient.Width()),
-					DIPFromPixels(rcClient.Height()));
+		m_pLayoutData = DXUT::DWCreateTextLayout(m_wstrData, m_pTextFormat,
+			DIPFromPixels(rcClient.Width()), DIPFromPixels(rcClient.Height()));
 		m_pLayoutData->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
 		m_pLayoutData->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
 
@@ -2099,41 +2087,137 @@ namespace DWFONTCHOOSE {
 
 	void CDWFontChooseSampleText::OnKeyLeft()
 	{
-		if (m_u32CaretPos == 0 || m_u32CaretPos > GetDataSize()) {
-			return;
+		if (::GetAsyncKeyState(VK_SHIFT) < 0) {
+			if (m_u32CaretPos > 0) {
+				if (m_u32SelSize == 0) {
+					m_u32SelClick = m_u32CaretPos;
+					m_u32SelStart = m_u32CaretPos - 1;
+					++m_u32SelSize;
+				}
+				else {
+					if (m_u32CaretPos > m_u32SelClick) {
+						--m_u32SelSize;
+					}
+					else {
+						++m_u32SelSize;
+						--m_u32SelStart;
+					}
+				}
+				--m_u32CaretPos;
+			}
+		}
+		else {
+			if (m_u32SelSize == 0) {
+				if (m_u32CaretPos > 0) {
+					--m_u32CaretPos;
+				}
+			}
+			else {
+				m_u32CaretPos = m_u32SelStart;
+			}
+
+			m_u32SelSize = 0;
 		}
 
-		EnsureVisible(--m_u32CaretPos);
+		EnsureVisible(m_u32CaretPos);
 	}
 
 	void CDWFontChooseSampleText::OnKeyRight()
 	{
-		if (m_u32CaretPos >= GetDataSize()) {
-			return;
+		if (::GetAsyncKeyState(VK_SHIFT) < 0) {
+			if (m_u32CaretPos < GetDataSize()) {
+				if (m_u32SelSize == 0) {
+					m_u32SelClick = m_u32SelStart = m_u32CaretPos;
+					++m_u32SelSize;
+				}
+				else {
+					if (m_u32CaretPos > m_u32SelStart) {
+						++m_u32SelSize;
+					}
+					else {
+						++m_u32SelStart;
+						--m_u32SelSize;
+					}
+				}
+				++m_u32CaretPos;
+			}
+		}
+		else {
+			if (m_u32SelSize == 0) {
+				if (m_u32CaretPos < GetDataSize()) {
+					++m_u32CaretPos;
+				}
+			}
+			else {
+				m_u32CaretPos = m_u32SelStart + m_u32SelSize;
+			}
+
+			m_u32SelSize = 0;
 		}
 
-		EnsureVisible(++m_u32CaretPos);
+		EnsureVisible(m_u32CaretPos);
 	}
 
 	void CDWFontChooseSampleText::OnKeyUp()
 	{
-		if (!m_pLayoutData) {
-			return;
-		}
-
-		DWRITE_HIT_TEST_METRICS htm;
 		float flX;
 		float flY;
-		m_pLayoutData->HitTestTextPosition(m_u32CaretPos, FALSE, &flX, &flY, &htm);
-		const auto u32LineCaret = static_cast<UINT32>(flY / GetLineHeightDIP());
-		if (u32LineCaret == 0) { //First line.
-			m_u32CaretPos = 0;
+		DWRITE_HIT_TEST_METRICS htm;
+		BOOL fIsTrail;
+		BOOL fIsInside;
+		DWRITE_TEXT_METRICS tm;
+		m_pLayoutData->GetMetrics(&tm);
+
+		if (::GetAsyncKeyState(VK_SHIFT) < 0) {
+			m_pLayoutData->HitTestTextPosition(m_u32CaretPos, FALSE, &flX, &flY, &htm);
+			const auto u32LineSel = static_cast<UINT32>(std::lround((flY - tm.top) / GetLineHeightDIP()));
+			if (m_u32SelSize == 0) {
+				if (u32LineSel == 0) { //First line.
+					m_u32SelClick = m_u32CaretPos;
+					m_u32SelStart = 0;
+					m_u32SelSize = m_u32SelClick;
+					m_u32CaretPos = 0;
+				}
+				else {
+					m_pLayoutData->HitTestPoint(flX, flY - GetLineHeightDIP(), &fIsTrail, &fIsInside, &htm);
+					m_u32SelClick = m_u32CaretPos;
+					m_u32SelStart = htm.textPosition;
+					m_u32SelSize = m_u32SelClick - m_u32SelStart;
+					m_u32CaretPos = m_u32SelStart;
+				}
+			}
+			else { //There is a selection.
+				if (u32LineSel == 0) { //First line.
+					m_u32SelSize = m_u32SelClick;
+					m_u32SelStart = 0;
+					m_u32CaretPos = 0;
+				}
+				else {
+					m_pLayoutData->HitTestPoint(flX, flY - GetLineHeightDIP(), &fIsTrail, &fIsInside, &htm);
+					if (htm.textPosition < m_u32SelClick) {
+						m_u32SelStart = htm.textPosition;
+						m_u32SelSize = m_u32SelClick - htm.textPosition;
+						m_u32CaretPos = m_u32SelStart;
+					}
+					else {
+						m_u32SelSize = htm.textPosition - m_u32SelStart;
+						m_u32CaretPos = m_u32SelStart + m_u32SelSize;
+					}
+				}
+			}
 		}
 		else {
-			BOOL fIsTrail;
-			BOOL fIsInside;
-			m_pLayoutData->HitTestPoint(flX, flY - GetLineHeightDIP(), &fIsTrail, &fIsInside, &htm);
-			m_u32CaretPos = htm.textPosition;
+			m_pLayoutData->HitTestTextPosition(m_u32SelSize == 0 ? m_u32CaretPos : m_u32SelStart, FALSE, &flX, &flY, &htm);
+			const auto u32LineSel = static_cast<UINT32>(std::lround((flY - tm.top) / GetLineHeightDIP()));
+			if (u32LineSel == 0) { //First line.
+				m_u32CaretPos = 0;
+			}
+			else {
+				m_pLayoutData->HitTestPoint(flX, flY - GetLineHeightDIP(), &fIsTrail, &fIsInside, &htm);
+				m_u32CaretPos = htm.textPosition;
+			}
+
+			m_u32SelSize = 0;
 		}
 
 		EnsureVisible(m_u32CaretPos);
@@ -2141,25 +2225,66 @@ namespace DWFONTCHOOSE {
 
 	void CDWFontChooseSampleText::OnKeyDown()
 	{
-		if (!m_pLayoutData) {
-			return;
-		}
-
-		DWRITE_HIT_TEST_METRICS htm;
 		float flX;
 		float flY;
-		m_pLayoutData->HitTestTextPosition(m_u32CaretPos, FALSE, &flX, &flY, &htm);
-		const auto u32LineCaret = static_cast<UINT32>(std::lround(flY / GetLineHeightDIP()));
+		DWRITE_HIT_TEST_METRICS htm;
+		BOOL fIsTrail;
+		BOOL fIsInside;
 		DWRITE_TEXT_METRICS tm;
 		m_pLayoutData->GetMetrics(&tm);
-		if (u32LineCaret == (tm.lineCount - 1)) { //Last line.
-			m_u32CaretPos = GetDataSize();
+
+		if (::GetAsyncKeyState(VK_SHIFT) < 0) {
+			m_pLayoutData->HitTestTextPosition(m_u32CaretPos, FALSE, &flX, &flY, &htm);
+			const auto u32LineCaret = static_cast<UINT32>(std::lround((flY - tm.top) / GetLineHeightDIP()));
+			if (m_u32SelSize == 0) {
+				if (u32LineCaret == (tm.lineCount - 1)) { //Last line.
+					m_u32SelClick = m_u32SelStart = m_u32CaretPos;
+					m_u32CaretPos = GetDataSize();
+					m_u32SelSize = m_u32CaretPos - m_u32SelStart;
+				}
+				else {
+					m_pLayoutData->HitTestPoint(flX, flY + GetLineHeightDIP() + (GetLineHeightDIP() / 2),
+						&fIsTrail, &fIsInside, &htm);
+					m_u32SelClick = m_u32SelStart = m_u32CaretPos;
+					m_u32CaretPos = htm.textPosition;
+					m_u32SelSize = m_u32CaretPos - m_u32SelStart;
+				}
+			}
+			else {
+				if (u32LineCaret == (tm.lineCount - 1)) { //Last line.
+					m_u32SelStart = m_u32SelClick;
+					m_u32CaretPos = GetDataSize();
+					m_u32SelSize = m_u32CaretPos - m_u32SelStart;
+				}
+				else {
+					m_pLayoutData->HitTestPoint(flX, flY + GetLineHeightDIP() + (GetLineHeightDIP() / 2),
+						&fIsTrail, &fIsInside, &htm);
+					if (htm.textPosition < m_u32SelClick) {
+						m_u32SelStart = htm.textPosition;
+						m_u32CaretPos = m_u32SelStart;
+						m_u32SelSize = m_u32SelClick - m_u32SelStart;
+					}
+					else {
+						m_u32SelStart = m_u32SelClick;
+						m_u32CaretPos = htm.textPosition;
+						m_u32SelSize = m_u32CaretPos - m_u32SelStart;
+					}
+				}
+			}
 		}
 		else {
-			BOOL fIsTrail;
-			BOOL fIsInside;
-			m_pLayoutData->HitTestPoint(flX, flY + GetLineHeightDIP() + (GetLineHeightDIP() / 2), &fIsTrail, &fIsInside, &htm);
-			m_u32CaretPos = htm.textPosition + (fIsTrail ? 1 : 0);
+			m_pLayoutData->HitTestTextPosition(m_u32SelSize == 0 ? m_u32CaretPos : m_u32SelStart + m_u32SelSize,
+				FALSE, &flX, &flY, &htm);
+			const auto u32LineCaret = static_cast<UINT32>(std::lround((flY - tm.top) / GetLineHeightDIP()));
+			if (u32LineCaret == (tm.lineCount - 1)) { //Last line.
+				m_u32CaretPos = GetDataSize();
+			}
+			else {
+				m_pLayoutData->HitTestPoint(flX, flY + GetLineHeightDIP() + (GetLineHeightDIP() / 2), &fIsTrail, &fIsInside, &htm);
+				m_u32CaretPos = htm.textPosition + (fIsTrail ? 1 : 0);
+			}
+
+			m_u32SelSize = 0;
 		}
 
 		EnsureVisible(m_u32CaretPos);
@@ -2171,7 +2296,7 @@ namespace DWFONTCHOOSE {
 			return;
 		}
 
-		if (m_u32SizeSel == 0) {
+		if (m_u32SelSize == 0) {
 			m_wstrData.erase(m_u32CaretPos, 1);
 		}
 		else {
@@ -2196,7 +2321,7 @@ namespace DWFONTCHOOSE {
 			return;
 		}
 
-		if (m_u32SizeSel == 0) {
+		if (m_u32SelSize == 0) {
 			if (m_u32CaretPos == 0) {
 				return;
 			}
@@ -2245,24 +2370,24 @@ namespace DWFONTCHOOSE {
 
 	void CDWFontChooseSampleText::RemoveSelected()
 	{
-		if (m_u32SizeSel == 0)
+		if (m_u32SelSize == 0)
 			return;
 
-		m_wstrData.erase(m_u32StartSel, m_u32SizeSel);
-		m_u32CaretPos = m_u32StartSel;
-		m_u32StartSel = m_u32SizeSel = 0;
+		m_wstrData.erase(m_u32SelStart, m_u32SelSize);
+		m_u32CaretPos = m_u32SelStart;
+		m_u32SelStart = m_u32SelSize = 0;
 	}
 
 	void CDWFontChooseSampleText::SelectAll()
 	{
-		m_u32StartSel = 0;
-		m_u32SizeSel = GetDataSize();
+		m_u32SelStart = 0;
+		m_u32SelSize = GetDataSize();
 		m_Wnd.RedrawWindow();
 	}
 
 	auto CDWFontChooseSampleText::WMChar(const MSG& msg)->LRESULT
 	{
-		const auto wChar = LOWORD(msg.wParam); //LOWORD holds wchar_t symbol.
+		const auto wChar = LOWORD(msg.wParam); //LOWORD contains wchar_t symbol.
 		if ((::GetAsyncKeyState(VK_CONTROL) < 0) || !std::iswprint(wChar)) {
 			return 0;
 		}
@@ -2278,12 +2403,45 @@ namespace DWFONTCHOOSE {
 	{
 		const auto wVKey = LOWORD(msg.wParam); //Virtual-key code (both: WM_KEYDOWN/WM_SYSKEYDOWN).
 
+		switch (wVKey) {
+		case VK_BACK:
+			OnKeyBackspace();
+			break;
+		case VK_DELETE:
+			OnKeyDelete();
+			break;
+		case VK_RETURN:
+			OnKeyEnter();
+			break;
+		case VK_LEFT:
+			OnKeyLeft();
+			break;
+		case VK_RIGHT:
+			OnKeyRight();
+			break;
+		case VK_UP:
+			OnKeyUp();
+			break;
+		case VK_DOWN:
+			OnKeyDown();
+			break;
+		case VK_HOME:
+			OnKeyHome();
+			break;
+		case VK_END:
+			OnKeyEnd();
+			break;
+		default:
+			break;
+		}
+
 		if (::GetAsyncKeyState(VK_CONTROL) < 0) { //Ctrl+...
 			switch (wVKey) {
 			case 'A':
 				SelectAll();
 				break;
 			case 'C':
+			case VK_INSERT:
 				ClipboardCopy();
 				break;
 			case 'X':
@@ -2296,34 +2454,10 @@ namespace DWFONTCHOOSE {
 				break;
 			}
 		}
-		else {
+		else if (::GetAsyncKeyState(VK_SHIFT) < 0) { //Shift+...
 			switch (wVKey) {
-			case VK_BACK:
-				OnKeyBackspace();
-				break;
-			case VK_DELETE:
-				OnKeyDelete();
-				break;
-			case VK_RETURN:
-				OnKeyEnter();
-				break;
-			case VK_LEFT:
-				OnKeyLeft();
-				break;
-			case VK_RIGHT:
-				OnKeyRight();
-				break;
-			case VK_UP:
-				OnKeyUp();
-				break;
-			case VK_DOWN:
-				OnKeyDown();
-				break;
-			case VK_HOME:
-				OnKeyHome();
-				break;
-			case VK_END:
-				OnKeyEnd();
+			case VK_INSERT:
+				ClipboardPaste();
 				break;
 			default:
 				break;
@@ -2345,18 +2479,29 @@ namespace DWFONTCHOOSE {
 			&fIsTrail, &fIsInside, &htm);
 
 		if (fIsInside) { //Select a clicked word.
-			const std::wstring_view wsv(m_wstrData.data(), htm.textPosition); //View beforehead.
-
+			const std::wstring_view wsvBefore(m_wstrData.data(), htm.textPosition); //View beforehead.
 			if (m_wstrData.at(htm.textPosition) == L' ') {
-				m_u32StartSel = static_cast<UINT32>(wsv.find_last_not_of(L' ') + 1);
-				m_u32SizeSel = static_cast<UINT32>(m_wstrData.find_first_not_of(L' ', htm.textPosition) - m_u32StartSel);
+				m_u32SelStart = static_cast<UINT32>(wsvBefore.find_last_not_of(L' ') + 1);
+				if (const auto uzNotSpace = m_wstrData.find_first_not_of(L' ', htm.textPosition);
+					uzNotSpace == std::wstring::npos) {
+					m_u32SelSize = GetDataSize() - m_u32SelStart;
+				}
+				else {
+					m_u32SelSize = static_cast<UINT32>(uzNotSpace - m_u32SelStart);
+				}
 			}
 			else {
-				m_u32StartSel = static_cast<UINT32>(wsv.find_last_of(L' ') + 1);
-				m_u32SizeSel = static_cast<UINT32>(m_wstrData.find_first_of(L' ', htm.textPosition) - m_u32StartSel);
+				m_u32SelStart = static_cast<UINT32>(wsvBefore.find_last_of(L' ') + 1);
+				if (const auto uzSpace = m_wstrData.find_first_of(L' ', htm.textPosition);
+					uzSpace == std::wstring::npos) {
+					m_u32SelSize = GetDataSize() - m_u32SelStart;
+				}
+				else {
+					m_u32SelSize = static_cast<UINT32>(uzSpace - m_u32SelStart);
+				}
 			}
 
-			m_u32CaretPos = m_u32StartSel + m_u32SizeSel;
+			m_u32CaretPos = m_u32SelStart + m_u32SelSize;
 			m_Wnd.RedrawWindow();
 		}
 
@@ -2373,8 +2518,8 @@ namespace DWFONTCHOOSE {
 		DWRITE_HIT_TEST_METRICS htm;
 		m_pLayoutData->HitTestPoint(DIPFromPixels(pt.x), DIPFromPixels(pt.y) + DIPFromPixels(m_Wnd.GetScrollPos(true)),
 			&fIsTrail, &fIsInside, &htm);
-		m_u32CaretPos = htm.textPosition + (fIsTrail ? 1 : 0);
-		m_u32SizeSel = 0;
+		m_u32CaretPos = m_u32SelClick = htm.textPosition + (fIsTrail ? 1 : 0);
+		m_u32SelSize = 0;
 		m_fLMDown = true;
 		m_Wnd.SetFocus();
 		m_Wnd.SetCapture();
@@ -2393,7 +2538,9 @@ namespace DWFONTCHOOSE {
 
 	auto CDWFontChooseSampleText::WMMouseMove(const MSG& msg)->LRESULT
 	{
-		if (!m_fLMDown || !m_pLayoutData) { return 0; }
+		if (!m_fLMDown || !m_pLayoutData) {
+			return 0;
+		}
 
 		const POINT pt { .x { ut::GetXLPARAM(msg.lParam) }, .y { ut::GetYLPARAM(msg.lParam) } };
 		BOOL fIsTrail;
@@ -2402,17 +2549,19 @@ namespace DWFONTCHOOSE {
 		m_pLayoutData->HitTestPoint(DIPFromPixels(pt.x), DIPFromPixels(pt.y) + DIPFromPixels(m_Wnd.GetScrollPos(true)),
 			&fIsTrail, &fIsInside, &htm);
 		if (fIsInside) {
-			if (htm.textPosition == m_u32CaretPos) {
-				m_u32StartSel = m_u32CaretPos;
-				m_u32SizeSel = fIsTrail ? 1 : 0;
+			if (htm.textPosition == m_u32SelClick) {
+				m_u32SelStart = m_u32SelClick;
+				m_u32SelSize = fIsTrail ? 1 : 0;
 			}
-			else if (htm.textPosition > m_u32CaretPos) {
-				m_u32StartSel = m_u32CaretPos;
-				m_u32SizeSel = (htm.textPosition - m_u32CaretPos) + (fIsTrail ? 1 : 0);
+			else if (htm.textPosition > m_u32SelClick) {
+				m_u32SelStart = m_u32SelClick;
+				m_u32SelSize = (htm.textPosition - m_u32SelClick) + (fIsTrail ? 1 : 0);
+				m_u32CaretPos = m_u32SelStart + m_u32SelSize;
 			}
-			else { //htm.textPosition < m_u32CaretPos.
-				m_u32StartSel = htm.textPosition + (fIsTrail ? 1 : 0);
-				m_u32SizeSel = m_u32CaretPos - m_u32StartSel;
+			else { //htm.textPosition < m_u32SelClick.
+				m_u32SelStart = htm.textPosition + (fIsTrail ? 1 : 0);
+				m_u32SelSize = m_u32SelClick - m_u32SelStart;
+				m_u32CaretPos = m_u32SelStart;
 			}
 
 			m_Wnd.RedrawWindow();
@@ -2454,9 +2603,9 @@ namespace DWFONTCHOOSE {
 		m_pLayoutData->SetDrawingEffect(nullptr, { .startPosition { 0 }, .length { GetDataSize() } });
 		m_pLayoutData->SetUnderline(m_fIsUnderline, { .startPosition { 0 }, .length { GetDataSize() } });
 		m_pLayoutData->SetStrikethrough(m_fIsStrikethrough, { .startPosition { 0 }, .length { GetDataSize() } });
-		if (m_u32SizeSel > 0) {
-			m_pLayoutData->SetDrawingEffect(&m_effSelection, { .startPosition { m_u32StartSel },
-				.length { m_u32SizeSel } });
+		if (m_u32SelSize > 0) {
+			m_pLayoutData->SetDrawingEffect(&m_effSelection, { .startPosition { m_u32SelStart },
+				.length { m_u32SelSize } });
 		}
 
 		m_pLayoutData->Draw(nullptr, &m_D2DTextRenderer, 0, -DIPFromPixels(m_Wnd.GetScrollPos(true)));
@@ -3035,6 +3184,18 @@ namespace DWFONTCHOOSE {
 		return TRUE;
 	};
 
+	auto CDWFontChooseDlg::WMDPIChanged([[maybe_unused]] const MSG & msg)->INT_PTR
+	{
+		m_DynLayout.Enable(true);
+		return 0;
+	}
+
+	auto CDWFontChooseDlg::WMGetDPIScaledSize([[maybe_unused]] const MSG & msg)->INT_PTR
+	{
+		m_DynLayout.Enable(false);
+		return 0;
+	}
+
 	auto CDWFontChooseDlg::WMInitDialog(const MSG& msg)->INT_PTR
 	{
 		m_Wnd.Attach(msg.hwnd);
@@ -3110,21 +3271,21 @@ namespace DWFONTCHOOSE {
 
 		m_SampleText.Create(m_Wnd, IDC_CUSTOM_FONT_SAMPLE);
 		m_vecFFI = DXUT::DWGetSystemFonts(m_fci.wstrLocale.data());
-		std::sort(m_vecFFI.begin(), m_vecFFI.end(), [](const DXUT::DWFONTFAMILYINFO& lhs, const DXUT::DWFONTFAMILYINFO& rhs) {
+		std::ranges::sort(m_vecFFI, [](const DXUT::DWFONTFAMILYINFO& lhs, const DXUT::DWFONTFAMILYINFO& rhs) {
 			return lhs.wstrFamilyName < rhs.wstrFamilyName;	});
 
 		m_FontFamilies.Create(m_Wnd, IDC_CUSTOM_FONT_FAMILY);
 		m_FontFaces.Create(m_Wnd, IDC_CUSTOM_FONT_FACE);
 		UpdateFontFamiliesList();
 
-		auto rcSTClient = m_WndFontSample.GetWindowRect();
-		m_Wnd.ScreenToClient(rcSTClient);
+		auto rcFSWnd = m_WndFontSample.GetWindowRect();
+		m_Wnd.ScreenToClient(rcFSWnd);
 		m_SplitHorz.Initialize(m_Wnd, m_WndFontFamily, GDIUT::CSplitter::EAnchorSide::SIDE_RIGHT, 16);
-		m_SplitHorz.SetEdges(1, rcSTClient.right - 1);
+		m_SplitHorz.SetEdges(1, rcFSWnd.right - 1);
 		m_SplitHorz.AddItem(m_WndFontFace, true);
 		m_SplitHorz.AddItem(m_WndStatTotalFamilies, false);
 		m_SplitVert.Initialize(m_Wnd, m_WndFontSample, GDIUT::CSplitter::EAnchorSide::SIDE_TOP, 7);
-		m_SplitVert.SetEdges(30, rcSTClient.bottom - 1);
+		m_SplitVert.SetEdges(30, rcFSWnd.bottom - 1);
 		m_SplitVert.AddItem(m_WndFontFamily, true);
 		m_SplitVert.AddItem(m_WndFontFace, true);
 		m_SplitVert.AddItem(IDC_COMBO_FONT_FAMILY, false);
@@ -3267,24 +3428,13 @@ namespace DWFONTCHOOSE {
 		const auto wHeight = HIWORD(msg.lParam);
 		m_DynLayout.WMSize(wWidth, wHeight);
 
-		auto rcFSClient = m_WndFontSample.GetWindowRect();
-		m_Wnd.ScreenToClient(rcFSClient);
-		m_SplitHorz.SetEdges(1, rcFSClient.right);
+		auto rcFSWnd = m_WndFontSample.GetWindowRect();
+		m_Wnd.ScreenToClient(rcFSWnd);
+		m_SplitHorz.SetEdges(1, rcFSWnd.right);
+		m_SplitVert.SetEdges(30, rcFSWnd.bottom - 1);
 		m_Wnd.RedrawWindow(nullptr, nullptr, RDW_ERASE | RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);
 
 		return TRUE;
-	}
-
-	auto CDWFontChooseDlg::WMDPIChanged([[maybe_unused]] const MSG & msg)->INT_PTR
-	{
-		m_DynLayout.Enable(true);
-		return 0;
-	}
-
-	auto CDWFontChooseDlg::WMGetDPIScaledSize([[maybe_unused]] const MSG & msg)->INT_PTR
-	{
-		m_DynLayout.Enable(false);
-		return 0;
 	}
 
 	export [[nodiscard]] auto DWFontChoose(const DWFONTCHOOSE::DWFONTCHOOSEINFO & fci) -> std::optional<DWFONTCHOOSE::DWFONTINFO> {
