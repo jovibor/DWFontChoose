@@ -167,55 +167,66 @@ namespace DWFONTCHOOSE {
 
 		class CPoint final : public POINT {
 		public:
-			CPoint() : POINT { } { }
-			CPoint(POINT pt) : POINT { pt } { }
-			CPoint(int x, int y) : POINT { .x { x }, .y { y } } { }
-			~CPoint() = default;
-			operator LPPOINT() { return this; }
-			operator const POINT*()const { return this; }
-			[[nodiscard]] bool operator==(CPoint rhs)const { return x == rhs.x && y == rhs.y; }
-			[[nodiscard]] bool operator==(POINT rhs)const { return x == rhs.x && y == rhs.y; }
-			[[nodiscard]] friend bool operator==(POINT lhs, CPoint rhs) { return rhs == lhs; }
-			CPoint operator+(POINT pt)const { return { x + pt.x, y + pt.y }; }
-			CPoint operator-(POINT pt)const { return { x - pt.x, y - pt.y }; }
-			void Offset(int iX, int iY) { x += iX; y += iY; }
-			void Offset(POINT pt) { Offset(pt.x, pt.y); }
+			constexpr CPoint() : POINT { } { }
+			constexpr CPoint(POINT pt) : POINT { pt } { }
+			constexpr CPoint(int x, int y) : POINT { .x { x }, .y { y } } { }
+			constexpr ~CPoint() = default;
+			constexpr operator LPPOINT() { return this; }
+			constexpr operator const POINT*()const { return this; }
+			[[nodiscard]] constexpr bool operator==(const CPoint& rhs)const { return x == rhs.x && y == rhs.y; };
+			[[nodiscard]] constexpr bool operator==(const POINT& rhs)const { return x == rhs.x && y == rhs.y; }
+			[[nodiscard]] constexpr friend bool operator==(const POINT& lhs, const CPoint& rhs) { return rhs == lhs; }
+			[[nodiscard]] constexpr CPoint operator+(POINT pt)const { return { x + pt.x, y + pt.y }; }
+			[[nodiscard]] constexpr CPoint operator-(POINT pt)const { return { x - pt.x, y - pt.y }; }
+			constexpr void Offset(int iX, int iY) { x += iX; y += iY; }
+			constexpr void Offset(POINT pt) { Offset(pt.x, pt.y); }
 		};
 
 		class CRect final : public RECT {
 		public:
-			CRect() : RECT { } { }
-			CRect(int iLeft, int iTop, int iRight, int iBottom) : RECT { .left { iLeft }, .top { iTop },
+			constexpr CRect() : RECT { } { }
+			constexpr CRect(int iLeft, int iTop, int iRight, int iBottom) : RECT { .left { iLeft }, .top { iTop },
 				.right { iRight }, .bottom { iBottom } } { }
-			CRect(const RECT& rc) { ::CopyRect(this, &rc); }
-			CRect(LPCRECT pRC) { ::CopyRect(this, pRC); }
-			CRect(POINT pt, SIZE size) : RECT { .left { pt.x }, .top { pt.y }, .right { pt.x + size.cx },
+			constexpr CRect(const RECT& rc) { *this = rc; }
+			constexpr CRect(LPCRECT pRC) { if (pRC == nullptr) { return; } *this = *pRC; }
+			constexpr CRect(POINT pt, SIZE size) : RECT { .left { pt.x }, .top { pt.y }, .right { pt.x + size.cx },
 				.bottom { pt.y + size.cy } } { }
-			CRect(POINT topLeft, POINT botRight) : RECT { .left { topLeft.x }, .top { topLeft.y },
+			constexpr CRect(POINT topLeft, POINT botRight) : RECT { .left { topLeft.x }, .top { topLeft.y },
 				.right { botRight.x }, .bottom { botRight.y } } { }
-			~CRect() = default;
-			operator LPRECT() { return this; }
-			operator LPCRECT()const { return this; }
-			[[nodiscard]] bool operator==(const CRect& rhs)const { return ::EqualRect(this, rhs); }
-			[[nodiscard]] bool operator==(const RECT& rhs)const { return ::EqualRect(this, &rhs); }
-			[[nodiscard]] friend bool operator==(const RECT& lhs, const CRect& rhs) { return rhs == lhs; }
-			CRect& operator=(const RECT& rhs) { ::CopyRect(this, &rhs); return *this; }
-			CRect& operator=(const CRect& rhs) { ::CopyRect(this, &rhs); return *this; }
-			[[nodiscard]] auto BottomRight()const -> CPoint { return { { .x { right }, .y { bottom } } }; };
-			void DeflateRect(int x, int y) { ::InflateRect(this, -x, -y); }
-			void DeflateRect(SIZE size) { ::InflateRect(this, -size.cx, -size.cy); }
-			void DeflateRect(LPCRECT pRC) { left += pRC->left; top += pRC->top; right -= pRC->right; bottom -= pRC->bottom; }
-			void DeflateRect(int l, int t, int r, int b) { left += l; top += t; right -= r; bottom -= b; }
-			[[nodiscard]] int Height()const { return bottom - top; }
-			[[nodiscard]] bool IsRectEmpty()const { return ::IsRectEmpty(this); }
-			[[nodiscard]] bool IsRectNull()const { return (left == 0 && right == 0 && top == 0 && bottom == 0); }
-			void OffsetRect(int x, int y) { ::OffsetRect(this, x, y); }
-			void OffsetRect(POINT pt) { ::OffsetRect(this, pt.x, pt.y); }
-			[[nodiscard]] bool PtInRect(POINT pt)const { return ::PtInRect(this, pt); }
-			void SetRect(int x1, int y1, int x2, int y2) { ::SetRect(this, x1, y1, x2, y2); }
-			void SetRectEmpty() { ::SetRectEmpty(this); }
-			[[nodiscard]] auto TopLeft()const -> CPoint { return { { .x { left }, .y { top } } }; };
-			[[nodiscard]] int Width()const { return right - left; }
+			constexpr ~CRect() = default;
+			constexpr operator LPRECT() { return this; }
+			constexpr operator LPCRECT()const { return this; }
+			[[nodiscard]] constexpr bool operator==(const CRect& rhs)const {
+				return left == rhs.left && top == rhs.top && right == rhs.right && bottom == rhs.bottom;
+			};
+			[[nodiscard]] constexpr bool operator==(const RECT& rhs)const {
+				return *this == CRect(rhs);
+			}
+			[[nodiscard]] constexpr friend bool operator==(const RECT& lhs, const CRect& rhs) { return rhs == lhs; }
+			constexpr CRect& operator=(const RECT& rhs) {
+				left = rhs.left; top = rhs.top; right = rhs.right; bottom = rhs.bottom;
+				return *this;
+			}
+			[[nodiscard]] constexpr auto BottomRight()const -> CPoint { return { { .x { right }, .y { bottom } } }; };
+			constexpr void DeflateRect(int x, int y) { InflateRect(-x, -y); }
+			constexpr void DeflateRect(SIZE size) { InflateRect(-size.cx, -size.cy); }
+			constexpr void DeflateRect(LPCRECT pRC) { left += pRC->left; top += pRC->top; right -= pRC->right; bottom -= pRC->bottom; }
+			constexpr void DeflateRect(int l, int t, int r, int b) { left += l; top += t; right -= r; bottom -= b; }
+			[[nodiscard]] constexpr int Height()const { return bottom - top; }
+			constexpr void InflateRect(int x, int y) { left -= x; top -= y; right += x; bottom += y; };
+			[[nodiscard]] constexpr bool IsRectEmpty()const { return right <= left || bottom <= top; }
+			[[nodiscard]] constexpr bool IsRectNull()const { return left == 0 && right == 0 && top == 0 && bottom == 0; }
+			constexpr void OffsetRect(int x, int y) { left += x; right += x; top += y; bottom += y; }
+			constexpr void OffsetRect(POINT pt) { OffsetRect(pt.x, pt.y); }
+			[[nodiscard]] constexpr bool PtInRect(POINT pt)const {
+				return pt.x >= left && pt.y >= top && pt.x < right && pt.y < bottom;
+			}
+			constexpr void SetRect(int iLeft, int iTop, int iRight, int iBottom) {
+				left = iLeft; top = iTop; right = iRight; bottom = iBottom;
+			}
+			constexpr void SetRectEmpty() { left = top = right = bottom = 0; }
+			[[nodiscard]] constexpr auto TopLeft()const -> CPoint { return { { .x { left }, .y { top } } }; };
+			[[nodiscard]] constexpr int Width()const { return right - left; }
 		};
 
 		class CSplitter final {
@@ -880,136 +891,7 @@ namespace DWFONTCHOOSE {
 			TCom* m_pTCom { };
 		};
 
-		[[nodiscard]] auto D2DGetFactory() -> ID2D1Factory1* {
-			static const comptr pD2DFactory1 = []() {
-				ID2D1Factory1* pFactory1;
-				::D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory1),
-					reinterpret_cast<void**>(&pFactory1));
-				assert(pFactory1 != nullptr);
-				return pFactory1;
-				}();
-			return pD2DFactory1;
-		}
-
-		[[nodiscard]] auto D3D11GetDevice() -> ID3D11Device* {
-			static const comptr pD3D11Device = []() {
-				UINT uDeviceFlags = D3D11_CREATE_DEVICE_SINGLETHREADED | D3D11_CREATE_DEVICE_BGRA_SUPPORT;
-			#ifdef _DEBUG
-				uDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
-			#endif
-				const D3D_FEATURE_LEVEL arrFL[] {
-					D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0,
-					D3D_FEATURE_LEVEL_9_3, D3D_FEATURE_LEVEL_9_2, D3D_FEATURE_LEVEL_9_1
-				};
-				ID3D11Device* pDevice;
-				::D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, uDeviceFlags, arrFL, std::size(arrFL),
-					D3D11_SDK_VERSION, &pDevice, nullptr, nullptr);
-				assert(pDevice != nullptr);
-				return pDevice;
-				}();
-			return pD3D11Device;
-		}
-
-		[[nodiscard]] auto DXGIGetDevice() -> IDXGIDevice1* {
-			static const comptr pDXGIDevice1 = []() {
-				IDXGIDevice1* pDevice1;
-				D3D11GetDevice()->QueryInterface(&pDevice1);
-				assert(pDevice1 != nullptr);
-				return pDevice1;
-				}();
-			return pDXGIDevice1;
-		}
-
-		[[nodiscard]] auto DXGICreateSwapChainForHWND(HWND hWnd) -> IDXGISwapChain1* {
-			assert(::IsWindow(hWnd));
-			const DXGI_SWAP_CHAIN_DESC1 scd { .Width { 0 }, .Height { 0 }, .Format { DXGI_FORMAT_B8G8R8A8_UNORM },
-				.Stereo { false }, .SampleDesc { .Count { 1 }, .Quality { 0 } },
-				.BufferUsage { DXGI_USAGE_RENDER_TARGET_OUTPUT }, .BufferCount { 2 }, .Scaling { DXGI_SCALING_NONE },
-				.SwapEffect { DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL }, .AlphaMode { DXGI_ALPHA_MODE_UNSPECIFIED }, .Flags { 0 } };
-			comptr<IDXGIAdapter> pDXGIAdapter;
-			DXGIGetDevice()->GetAdapter(pDXGIAdapter);
-			assert(pDXGIAdapter != nullptr);
-			if (pDXGIAdapter == nullptr) { return { }; }
-
-			comptr<IDXGIFactory2> pDXGIFactory2;
-			pDXGIAdapter->GetParent(__uuidof(**(pDXGIFactory2.get_addr())), pDXGIFactory2);
-			assert(pDXGIFactory2);
-			if (!pDXGIFactory2) { return { }; }
-
-			IDXGISwapChain1* pDXGISwapChain1;
-			pDXGIFactory2->CreateSwapChainForHwnd(D3D11GetDevice(), hWnd, &scd, nullptr, nullptr, &pDXGISwapChain1);
-			assert(pDXGISwapChain1 != nullptr);
-			return pDXGISwapChain1;
-		}
-
-		[[nodiscard]] auto D2DCreateDevice() -> ID2D1Device* {
-			ID2D1Device* pD2DDevice;
-			D2DGetFactory()->CreateDevice(DXGIGetDevice(), &pD2DDevice);
-			assert(pD2DDevice != nullptr);
-			return pD2DDevice;
-		}
-
-		[[nodiscard]] auto D2DCreateDeviceContext(ID2D1Device* pD2DDevice) -> ID2D1DeviceContext* {
-			assert(pD2DDevice);
-			ID2D1DeviceContext* pD2DDeviceContext;
-			pD2DDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &pD2DDeviceContext);
-			assert(pD2DDeviceContext != nullptr);
-			return pD2DDeviceContext;
-		}
-
-		[[nodiscard]] auto D2DCreateBitmapFromDxgiSurface(ID2D1DeviceContext* pD2DDC, IDXGISwapChain1* pDXGISwapChain) -> ID2D1Bitmap1* {
-			assert(pD2DDC != nullptr);
-			assert(pDXGISwapChain != nullptr);
-			comptr<IDXGISurface> pDXGISurface;
-			pDXGISwapChain->GetBuffer(0, __uuidof(**(pDXGISurface.get_addr())), pDXGISurface);
-			assert(pDXGISurface != nullptr);
-			if (pDXGISurface == nullptr) { return { }; }
-
-			ID2D1Bitmap1* pD2DBitmap1;
-			const auto bp = D2D1::BitmapProperties1(D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
-			   D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED));
-			pD2DDC->CreateBitmapFromDxgiSurface(pDXGISurface, bp, &pD2DBitmap1);
-			return pD2DBitmap1;
-		}
-
-		[[nodiscard]] auto DWGetFactory() -> IDWriteFactory3* {
-			static const comptr pD2DWriteFactory = []() {
-				IDWriteFactory3* pWriteFactory;
-				::DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED, __uuidof(IDWriteFactory3),
-					reinterpret_cast<IUnknown**>(&pWriteFactory));
-				assert(pWriteFactory != nullptr);
-				return pWriteFactory;
-				}();
-			return pD2DWriteFactory;
-		}
-
-		[[nodiscard]] auto DWCreateTextFormat(const DWFONTINFO& fi) -> IDWriteTextFormat1* {
-			comptr<IDWriteTextFormat> pTextFormat;
-			DWGetFactory()->CreateTextFormat(fi.wstrFamilyName.data(), nullptr, fi.eWeight, fi.eStyle, fi.eStretch,
-				fi.flSizeDIP, fi.wstrLocale.data(), pTextFormat);
-			assert(pTextFormat != nullptr);
-			if (pTextFormat == nullptr) { return { }; }
-
-			IDWriteTextFormat1* pTextFormat1;
-			pTextFormat->QueryInterface(&pTextFormat1);
-			return pTextFormat1;
-		}
-
-		[[nodiscard]] auto DWCreateTextLayout(std::wstring_view wsv, IDWriteTextFormat1* pTextFormat, float flWidthMax,
-			float flHeightMax) -> IDWriteTextLayout1* {
-			assert(pTextFormat);
-			comptr<IDWriteTextLayout> pTextLayout;
-			DWGetFactory()->CreateTextLayout(wsv.data(), static_cast<UINT32>(wsv.size()), pTextFormat, flWidthMax,
-				flHeightMax, pTextLayout);
-			assert(pTextLayout != nullptr);
-			if (pTextLayout == nullptr) { return { }; }
-
-			IDWriteTextLayout1* pTextLayout1;
-			pTextLayout->QueryInterface(&pTextLayout1);
-			return pTextLayout1;
-		}
-
-		struct DWFONTFACEINFO {
+		struct DWFONTFACE {
 			std::wstring wstrTypographicFamilyName;           //DWRITE_FONT_PROPERTY_ID_TYPOGRAPHIC_FAMILY_NAME
 			std::wstring wstrWeightStretchStyleFaceName;      //DWRITE_FONT_PROPERTY_ID_WEIGHT_STRETCH_STYLE_FACE_NAME
 			std::wstring wstrFullName;                        //DWRITE_FONT_PROPERTY_ID_FULL_NAME
@@ -1024,14 +906,130 @@ namespace DWFONTCHOOSE {
 			std::wstring wstrTypographicFaceName;             //DWRITE_FONT_PROPERTY_ID_TYPOGRAPHIC_FACE_NAME
 		};
 
-		struct DWFONTFAMILYINFO {
-			std::wstring                wstrFamilyName; //DWRITE_FONT_PROPERTY_ID_WEIGHT_STRETCH_STYLE_FAMILY_NAME
-			std::wstring                wstrLocale;
-			std::vector<DWFONTFACEINFO> vecFontFaceInfo;
-			bool                        fIsMonospaced { };
+		struct DWFONTFAMILY {
+			std::wstring            wstrFamilyName; //DWRITE_FONT_PROPERTY_ID_WEIGHT_STRETCH_STYLE_FAMILY_NAME
+			std::wstring            wstrLocale;
+			std::vector<DWFONTFACE> vecFontFace;
+			bool                    fIsMonospaced { };
 		};
 
-		[[nodiscard]] auto DWGetSystemFonts(const wchar_t* pwszLocale = L"en-US") -> std::vector<DWFONTFAMILYINFO> {
+		[[nodiscard]] auto D3D11CreateDevice() -> ID3D11Device* {
+			UINT uDeviceFlags = D3D11_CREATE_DEVICE_SINGLETHREADED | D3D11_CREATE_DEVICE_BGRA_SUPPORT;
+		#ifdef _DEBUG
+			uDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
+		#endif
+			const D3D_FEATURE_LEVEL arrFL[] {
+				D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_1, D3D_FEATURE_LEVEL_10_0,
+				D3D_FEATURE_LEVEL_9_3, D3D_FEATURE_LEVEL_9_2, D3D_FEATURE_LEVEL_9_1
+			};
+			ID3D11Device* pD3D11Device;
+			::D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, uDeviceFlags, arrFL, std::size(arrFL),
+				D3D11_SDK_VERSION, &pD3D11Device, nullptr, nullptr);
+			assert(pD3D11Device != nullptr);
+			return pD3D11Device;
+		}
+
+		[[nodiscard]] auto D3D11GetDXGIDevice(ID3D11Device* pD3D11Device) -> IDXGIDevice1* {
+			IDXGIDevice1* pDXGIDevice1;
+			pD3D11Device->QueryInterface(&pDXGIDevice1);
+			assert(pDXGIDevice1 != nullptr);
+			return pDXGIDevice1;
+		}
+
+		[[nodiscard]] auto DXGICreateSwapChainForHWND(IDXGIDevice1* pDXGIDevice, ID3D11Device* pD3D11Device, HWND hWnd) -> IDXGISwapChain1* {
+			assert(::IsWindow(hWnd));
+			const DXGI_SWAP_CHAIN_DESC1 scd { .Width { 0 }, .Height { 0 }, .Format { DXGI_FORMAT_B8G8R8A8_UNORM },
+				.Stereo { false }, .SampleDesc { .Count { 1 }, .Quality { 0 } }, .BufferUsage { DXGI_USAGE_RENDER_TARGET_OUTPUT },
+				.BufferCount { 2 }, .Scaling { DXGI_SCALING_NONE }, .SwapEffect { DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL },
+				.AlphaMode { DXGI_ALPHA_MODE_UNSPECIFIED }, .Flags { 0 } };
+			comptr<IDXGIAdapter> pDXGIAdapter;
+			pDXGIDevice->GetAdapter(pDXGIAdapter);
+			assert(pDXGIAdapter != nullptr);
+			if (pDXGIAdapter == nullptr) { return { }; }
+
+			comptr<IDXGIFactory2> pDXGIFactory2;
+			pDXGIAdapter->GetParent(__uuidof(**(pDXGIFactory2.get_addr())), pDXGIFactory2);
+			assert(pDXGIFactory2 != nullptr);
+			if (pDXGIFactory2 == nullptr) { return { }; }
+
+			IDXGISwapChain1* pDXGISwapChain1;
+			pDXGIFactory2->CreateSwapChainForHwnd(pD3D11Device, hWnd, &scd, nullptr, nullptr, &pDXGISwapChain1);
+			assert(pDXGISwapChain1 != nullptr);
+			return pDXGISwapChain1;
+		}
+
+		[[nodiscard]] auto D2DCreateFactory(D2D1_FACTORY_TYPE eD2DFT = D2D1_FACTORY_TYPE_SINGLE_THREADED) -> ID2D1Factory1* {
+			ID2D1Factory1* pD2DFactory1;
+			::D2D1CreateFactory(eD2DFT, __uuidof(ID2D1Factory1), reinterpret_cast<void**>(&pD2DFactory1));
+			assert(pD2DFactory1 != nullptr);
+			return pD2DFactory1;
+		}
+
+		[[nodiscard]] auto D2DCreateDevice(ID2D1Factory1* pD2DFactory, IDXGIDevice1* pDXGIDevice) -> ID2D1Device* {
+			ID2D1Device* pD2DDevice;
+			pD2DFactory->CreateDevice(pDXGIDevice, &pD2DDevice);
+			assert(pD2DDevice != nullptr);
+			return pD2DDevice;
+		}
+
+		[[nodiscard]] auto D2DCreateDeviceContext(ID2D1Device* pD2DDevice) -> ID2D1DeviceContext* {
+			assert(pD2DDevice);
+			ID2D1DeviceContext* pD2DDeviceContext;
+			pD2DDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, &pD2DDeviceContext);
+			assert(pD2DDeviceContext != nullptr);
+			return pD2DDeviceContext;
+		}
+
+		[[nodiscard]] auto D2DCreateBitmapFromDXGISurface(ID2D1DeviceContext* pD2DDC, IDXGISwapChain1* pDXGISwapChain) -> ID2D1Bitmap1* {
+			assert(pD2DDC != nullptr);
+			assert(pDXGISwapChain != nullptr);
+			comptr<IDXGISurface> pDXGISurface;
+			pDXGISwapChain->GetBuffer(0, __uuidof(**(pDXGISurface.get_addr())), pDXGISurface);
+			assert(pDXGISurface != nullptr);
+			if (pDXGISurface == nullptr) { return { }; }
+
+			ID2D1Bitmap1* pD2DBitmap1;
+			const auto bp = D2D1::BitmapProperties1(D2D1_BITMAP_OPTIONS_TARGET | D2D1_BITMAP_OPTIONS_CANNOT_DRAW,
+			   D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED));
+			pD2DDC->CreateBitmapFromDxgiSurface(pDXGISurface, bp, &pD2DBitmap1);
+			return pD2DBitmap1;
+		}
+
+		[[nodiscard]] auto DWCreateFactory(DWRITE_FACTORY_TYPE eDWFT = DWRITE_FACTORY_TYPE_SHARED) -> IDWriteFactory3* {
+			IDWriteFactory3* pDWriteFactory3;
+			::DWriteCreateFactory(eDWFT, __uuidof(IDWriteFactory3), reinterpret_cast<IUnknown**>(&pDWriteFactory3));
+			assert(pDWriteFactory3 != nullptr);
+			return pDWriteFactory3;
+		}
+
+		[[nodiscard]] auto DWCreateTextFormat(IDWriteFactory3* pDWriteFactory, const DWFONTINFO& dwfi) -> IDWriteTextFormat1* {
+			comptr<IDWriteTextFormat> pTextFormat;
+			pDWriteFactory->CreateTextFormat(dwfi.wstrFamilyName.data(), nullptr, dwfi.eWeight, dwfi.eStyle, dwfi.eStretch,
+				dwfi.flSizeDIP, dwfi.wstrLocale.data(), pTextFormat);
+			assert(pTextFormat != nullptr);
+			if (pTextFormat == nullptr) { return { }; }
+
+			IDWriteTextFormat1* pTextFormat1;
+			pTextFormat->QueryInterface(&pTextFormat1);
+			return pTextFormat1;
+		}
+
+		[[nodiscard]] auto DWCreateTextLayout(IDWriteFactory3* pDWriteFactory, std::wstring_view wsv,
+			IDWriteTextFormat1* pTextFormat, float flWidthMax, float flHeightMax) -> IDWriteTextLayout1* {
+			assert(pTextFormat);
+			comptr<IDWriteTextLayout> pTextLayout;
+			pDWriteFactory->CreateTextLayout(wsv.data(), static_cast<UINT32>(wsv.size()), pTextFormat, flWidthMax,
+				flHeightMax, pTextLayout);
+			assert(pTextLayout != nullptr);
+			if (pTextLayout == nullptr) { return { }; }
+
+			IDWriteTextLayout1* pTextLayout1;
+			pTextLayout->QueryInterface(&pTextLayout1);
+			return pTextLayout1;
+		}
+
+		[[nodiscard]] auto DWGetSystemFonts(IDWriteFactory3* pDWriteFactory, const wchar_t* pwszLocale = L"en-US")
+			-> std::vector<DWFONTFAMILY> {
 			const auto lmbGetWstrLocale = [=](IDWriteLocalizedStrings* pLocStrings)->std::wstring {
 				if (pLocStrings == nullptr) {
 					return { };
@@ -1071,7 +1069,7 @@ namespace DWFONTCHOOSE {
 				};
 
 			comptr<IDWriteFontSet> pSysFontSet;
-			DWGetFactory()->GetSystemFontSet(pSysFontSet);
+			pDWriteFactory->GetSystemFontSet(pSysFontSet);
 			assert(pSysFontSet);
 			if (!pSysFontSet) { return { }; }
 
@@ -1082,8 +1080,8 @@ namespace DWFONTCHOOSE {
 			if (!pStringsFamilyName) { return{ }; }
 
 			const auto iCountFontFamilies = pStringsFamilyName->GetCount(); //How many unique Font Family Names.
-			std::vector<DWFONTFAMILYINFO> vecFontInfo;
-			vecFontInfo.reserve(iCountFontFamilies);
+			std::vector<DWFONTFAMILY> vecFontFamily;
+			vecFontFamily.reserve(iCountFontFamilies);
 			for (auto iFontFamily = 0U; iFontFamily < iCountFontFamilies; ++iFontFamily) {
 				wchar_t buffFamilyName[64];
 				pStringsFamilyName->GetString(iFontFamily, buffFamilyName, std::size(buffFamilyName));
@@ -1092,8 +1090,8 @@ namespace DWFONTCHOOSE {
 				comptr<IDWriteFontSet> pFamilyNameSet;
 				pSysFontSet->GetMatchingFonts(&fp, 1, pFamilyNameSet);
 				const auto iCountFontFaces = pFamilyNameSet->GetFontCount(); //How many fonts (Font Face) within this Family Name.
-				std::vector<DWFONTFACEINFO> vecFontFaceInfo;
-				vecFontFaceInfo.reserve(iCountFontFaces);
+				std::vector<DWFONTFACE> vecFontFace;
+				vecFontFace.reserve(iCountFontFaces);
 
 				bool fIsMonospaced { false };
 				if (iCountFontFaces > 0) {
@@ -1134,7 +1132,7 @@ namespace DWFONTCHOOSE {
 					pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_STRETCH, &f, pStrStretch);
 					pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_STYLE, &f, pStrStyle);
 					pFamilyNameSet->GetPropertyValues(iFontFace, DWRITE_FONT_PROPERTY_ID_TYPOGRAPHIC_FACE_NAME, &f, pStrTypographicFaceName);
-					vecFontFaceInfo.emplace_back(DWFONTFACEINFO {
+					vecFontFace.emplace_back(DWFONTFACE {
 						.wstrTypographicFamilyName { lmbGetWstrLocale(pStrTypographicFamilyName) },
 						.wstrWeightStretchStyleFaceName { lmbGetWstrLocale(pStrWeightStretchStyleFaceName) },
 						.wstrFullName { lmbGetWstrLocale(pStrFullName) },
@@ -1149,11 +1147,31 @@ namespace DWFONTCHOOSE {
 						.wstrTypographicFaceName { lmbGetWstrLocale(pStrTypographicFaceName) } });
 				}
 
-				vecFontInfo.emplace_back(DWFONTFAMILYINFO { .wstrFamilyName { buffFamilyName }, .wstrLocale { pwszLocale },
-					.vecFontFaceInfo { std::move(vecFontFaceInfo) }, .fIsMonospaced { fIsMonospaced } });
+				vecFontFamily.emplace_back(DWFONTFAMILY { .wstrFamilyName { buffFamilyName }, .wstrLocale { pwszLocale },
+					.vecFontFace { std::move(vecFontFace) }, .fIsMonospaced { fIsMonospaced } });
 			}
 
-			return vecFontInfo;
+			return vecFontFamily;
+		}
+
+		[[nodiscard]] auto D3D11GetDeviceStatic() {
+			static const comptr pD3D11Device = D3D11CreateDevice();
+			return pD3D11Device;
+		}
+
+		[[nodiscard]] auto D3D11GetDXGIDeviceStatic() {
+			static const comptr pDXGIDevice = D3D11GetDXGIDevice(D3D11GetDeviceStatic());
+			return pDXGIDevice;
+		}
+
+		[[nodiscard]] auto D2DGetFactoryStatic() {
+			static const comptr pD2DFactory = D2DCreateFactory();
+			return pD2DFactory;
+		}
+
+		[[nodiscard]] auto DWGetFactoryStatic() {
+			static const comptr pDWriteFactory = DWCreateFactory();
+			return pDWriteFactory;
 		}
 
 		class CTextEffect final : public IUnknown {
@@ -1162,7 +1180,9 @@ namespace DWFONTCHOOSE {
 			CTextEffect(ID2D1Brush* pBrushBk, ID2D1Brush* pBrushText) : m_pBrushBk(pBrushBk), m_pBrushText(pBrushText) { }
 			auto AddRef() -> ULONG override { return 1UL; }
 			auto Release() -> ULONG override { return 1UL; }
-			auto QueryInterface([[maybe_unused]] const IID& riid, [[maybe_unused]] void** ppvObject) -> HRESULT override { return E_NOTIMPL; }
+			auto QueryInterface([[maybe_unused]] const IID& riid, [[maybe_unused]] void** ppvObject) -> HRESULT override {
+				return E_NOTIMPL;
+			}
 			[[nodiscard]] auto GetBkBrush()const -> ID2D1Brush* { return m_pBrushBk; };
 			[[nodiscard]] auto GetTextBrush()const -> ID2D1Brush* { return m_pBrushText; };
 			void SetBkBrush(ID2D1Brush* pBrushBk) { m_pBrushBk = pBrushBk; }
@@ -1200,10 +1220,8 @@ namespace DWFONTCHOOSE {
 			}
 			auto DrawGlyphRun([[maybe_unused]] void* pContext, FLOAT flBaseLineX, FLOAT flBaseLineY, DWRITE_MEASURING_MODE eMMode,
 				const DWRITE_GLYPH_RUN* pGR, [[maybe_unused]] const DWRITE_GLYPH_RUN_DESCRIPTION* pGRD, IUnknown* pEffect) -> HRESULT override {
-				const auto pTextEffect = static_cast<CTextEffect*>(pEffect);
 				ID2D1Brush* pBrushText;
-
-				if (pTextEffect != nullptr) {
+				if (const auto pTextEffect = static_cast<CTextEffect*>(pEffect); pTextEffect != nullptr) {
 					const auto pBrushBk = pTextEffect->GetBkBrush();
 					pBrushText = pTextEffect->GetTextBrush();
 
@@ -1221,7 +1239,9 @@ namespace DWFONTCHOOSE {
 						flBaseLineX + flTextWidth, flBaseLineY + flDescent);
 					m_context.pDeviceContext->FillRectangle(rcBk, pBrushBk);
 				}
-				else { pBrushText = m_context.pBrushTextDef; }
+				else {
+					pBrushText = m_context.pBrushTextDef;
+				}
 
 				m_context.pDeviceContext->DrawGlyphRun(D2D1::Point2F(flBaseLineX, flBaseLineY), pGR, pBrushText, eMMode);
 
@@ -1233,7 +1253,7 @@ namespace DWFONTCHOOSE {
 				return E_NOTIMPL;
 			}
 			auto DrawStrikethrough([[maybe_unused]] void* pContext, FLOAT flBaseLineX, FLOAT flBaseLineY,
-				[[maybe_unused]] const DWRITE_STRIKETHROUGH* pStrikeThrough, [[maybe_unused]] IUnknown* pEffect) -> HRESULT override {
+				const DWRITE_STRIKETHROUGH* pStrikeThrough, [[maybe_unused]] IUnknown* pEffect) -> HRESULT override {
 				const auto flTop = flBaseLineY + pStrikeThrough->offset;
 				m_context.pDeviceContext->DrawLine(D2D1::Point2F(flBaseLineX, flTop),
 					D2D1::Point2F(flBaseLineX + pStrikeThrough->width, flTop), m_context.pBrushTextDef, pStrikeThrough->thickness);
@@ -1246,11 +1266,11 @@ namespace DWFONTCHOOSE {
 					D2D1::Point2F(flBaseLineX + pUnderline->width, flTop), m_context.pBrushTextDef, pUnderline->thickness);
 				return S_OK;
 			}
-			auto GetCurrentTransform([[maybe_unused]] void* pContext, [[maybe_unused]] DWRITE_MATRIX* pMatrix) -> HRESULT override {
+			auto GetCurrentTransform([[maybe_unused]] void* pContext, DWRITE_MATRIX* pMatrix) -> HRESULT override {
 				m_context.pDeviceContext->GetTransform(reinterpret_cast<D2D1_MATRIX_3X2_F*>(pMatrix));
 				return S_OK;
 			}
-			auto GetPixelsPerDip([[maybe_unused]] void* pContext, [[maybe_unused]] FLOAT* pPixelsPerDip) -> HRESULT override {
+			auto GetPixelsPerDip([[maybe_unused]] void* pContext, FLOAT* pPixelsPerDip) -> HRESULT override {
 				float flDPIX;
 				float flDPIY;
 				m_context.pDeviceContext->GetDpi(&flDPIX, &flDPIY);
@@ -1270,9 +1290,9 @@ namespace DWFONTCHOOSE {
 	constexpr auto MSG_ITEM_CHANGED { 0x1 };
 
 	struct FONTDATA {
-		std::wstring                  wstrString;
-		const DXUT::DWFONTFAMILYINFO* pFamilyInfo { };
-		const DXUT::DWFONTFACEINFO*   pFaceInfo { };
+		std::wstring              wstrString;
+		const DXUT::DWFONTFAMILY* pFontFamily { };
+		const DXUT::DWFONTFACE*   pFontFace { };
 	};
 
 
@@ -1378,10 +1398,10 @@ namespace DWFONTCHOOSE {
 		m_flDPIScale = flDPI / USER_DEFAULT_SCREEN_DPI;
 
 		//Direct2D.
-		m_pD2DDevice = DXUT::D2DCreateDevice();
+		m_pD2DDevice = DXUT::D2DCreateDevice(DXUT::D2DGetFactoryStatic(), DXUT::D3D11GetDXGIDeviceStatic());
 		m_pD2DDeviceContext = DXUT::D2DCreateDeviceContext(m_pD2DDevice);
-		m_pDXGISwapChain = DXUT::DXGICreateSwapChainForHWND(m_Wnd);
-		m_pD2DTargetBitmap = DXUT::D2DCreateBitmapFromDxgiSurface(m_pD2DDeviceContext, m_pDXGISwapChain);
+		m_pDXGISwapChain = DXUT::DXGICreateSwapChainForHWND(DXUT::D3D11GetDXGIDeviceStatic(), DXUT::D3D11GetDeviceStatic(), m_Wnd);
+		m_pD2DTargetBitmap = DXUT::D2DCreateBitmapFromDXGISurface(m_pD2DDeviceContext, m_pDXGISwapChain);
 		m_pD2DDeviceContext->SetTarget(m_pD2DTargetBitmap);
 		m_pD2DDeviceContext->SetDpi(flDPI, flDPI);
 		m_pD2DDeviceContext->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
@@ -1391,7 +1411,7 @@ namespace DWFONTCHOOSE {
 		m_pD2DDeviceContext->CreateSolidColorBrush(D2D1::ColorF(0.9F, 0.9F, 0.9F), m_pD2DBrushLightGray);
 
 		//Text.
-		m_pDWTextFormatMain = DXUT::DWCreateTextFormat({ .wstrFamilyName { L"Courier New" },
+		m_pDWTextFormatMain = DXUT::DWCreateTextFormat(DXUT::DWGetFactoryStatic(), { .wstrFamilyName { L"Courier New" },
 			.wstrLocale { L"en-us" }, .flSizeDIP { m_flSizeFontMainDIP } });
 		m_pDWTextFormatMain->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
 		m_pDWTextFormatMain->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, GetLineSpacingDIP(), m_flBaseLineDIP);
@@ -1675,22 +1695,23 @@ namespace DWFONTCHOOSE {
 		for (auto uLine = 0U; uLine < liv.u32TotalInView; ++uLine) {
 			const auto uCurrLine = liv.u32FirstItem + uLine;
 			const auto& fd = m_spnFD[uCurrLine];
-			const auto pFamilyInfo = fd.pFamilyInfo;
-			const auto pFaceInfo = fd.pFaceInfo;
-			const auto pTextLayoutFName = DXUT::DWCreateTextLayout(fd.wstrString, m_pDWTextFormatMain, 0, 0);
+			const auto pFontFamily = fd.pFontFamily;
+			const auto pFontFace = fd.pFontFace;
+			const auto pTextLayoutFName = DXUT::DWCreateTextLayout(DXUT::DWGetFactoryStatic(), fd.wstrString,
+				m_pDWTextFormatMain, 0, 0);
 			const auto flY = (static_cast<float>(uLine) * GetLineSpacingDIP()) - liv.flFirstItemCoordYDIP;
 			m_pD2DDeviceContext->DrawTextLayout(D2D1::Point2F(DIPFromPixels(10.F), flY), pTextLayoutFName, m_pD2DBrushBlack);
 
 			//Second column.
-			const DXUT::comptr pTextFormat = DXUT::DWCreateTextFormat({ .wstrFamilyName { pFamilyInfo->wstrFamilyName },
-				.wstrLocale { pFamilyInfo->wstrLocale },
-				.eWeight { static_cast<DWRITE_FONT_WEIGHT>(std::stoi(pFaceInfo->wstrWeight)) },
-				.eStretch { static_cast<DWRITE_FONT_STRETCH>(std::stoi(pFaceInfo->wstrStretch)) },
-				.eStyle { static_cast<DWRITE_FONT_STYLE>(std::stoi(pFaceInfo->wstrStyle)) },
+			const DXUT::comptr pTextFormat = DXUT::DWCreateTextFormat(DXUT::DWGetFactoryStatic(),
+				{ .wstrFamilyName { pFontFamily->wstrFamilyName }, .wstrLocale { pFontFamily->wstrLocale },
+				.eWeight { static_cast<DWRITE_FONT_WEIGHT>(std::stoi(pFontFace->wstrWeight)) },
+				.eStretch { static_cast<DWRITE_FONT_STRETCH>(std::stoi(pFontFace->wstrStretch)) },
+				.eStyle { static_cast<DWRITE_FONT_STYLE>(std::stoi(pFontFace->wstrStyle)) },
 				.flSizeDIP { m_flSizeFontMainDIP * 1.5F } });
 			pTextFormat->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
 			pTextFormat->SetLineSpacing(DWRITE_LINE_SPACING_METHOD_UNIFORM, GetLineSpacingDIP(), m_flBaseLineDIP);
-			const auto pTextLayoutSample = DXUT::DWCreateTextLayout(L"Sample", pTextFormat, 0, 0);
+			const auto pTextLayoutSample = DXUT::DWCreateTextLayout(DXUT::DWGetFactoryStatic(), L"Sample", pTextFormat, 0, 0);
 			m_pD2DDeviceContext->DrawTextLayout(D2D1::Point2F(liv.flFirstItemCoordXDIP, flY), pTextLayoutSample, m_pD2DBrushBlack);
 		}
 
@@ -1711,7 +1732,7 @@ namespace DWFONTCHOOSE {
 		m_pD2DDeviceContext->SetTarget(nullptr);
 		m_pD2DTargetBitmap.safe_release();
 		m_pDXGISwapChain->ResizeBuffers(0, wWidth, wHeight, DXGI_FORMAT_UNKNOWN, 0);
-		m_pD2DTargetBitmap = DXUT::D2DCreateBitmapFromDxgiSurface(m_pD2DDeviceContext, m_pDXGISwapChain);
+		m_pD2DTargetBitmap = DXUT::D2DCreateBitmapFromDXGISurface(m_pD2DDeviceContext, m_pDXGISwapChain);
 		m_pD2DDeviceContext->SetTarget(m_pD2DTargetBitmap);
 		RecalcScroll();
 
@@ -1786,7 +1807,7 @@ namespace DWFONTCHOOSE {
 		~CDWFontChooseSampleText();
 		void Create(HWND hWndParent, UINT uCtrlID);
 		[[nodiscard]] auto ProcessMsg(const MSG& msg) -> LRESULT;
-		void SetFontInfo(const DWFONTINFO& fi);
+		void SetFontInfo(const DWFONTINFO& dwfi);
 		void SetUnderline(bool fIsUnderline);
 		void SetStrikethrough(bool fIsStrikethrough);
 	private:
@@ -1891,10 +1912,10 @@ namespace DWFONTCHOOSE {
 		m_flDPIScale = flDPI / USER_DEFAULT_SCREEN_DPI;
 
 		//Direct2D.
-		m_pD2DDevice = DXUT::D2DCreateDevice();
+		m_pD2DDevice = DXUT::D2DCreateDevice(DXUT::D2DGetFactoryStatic(), DXUT::D3D11GetDXGIDeviceStatic());
 		m_pD2DDeviceContext = DXUT::D2DCreateDeviceContext(m_pD2DDevice);
-		m_pDXGISwapChain = DXUT::DXGICreateSwapChainForHWND(m_Wnd);
-		m_pD2DTargetBitmap = DXUT::D2DCreateBitmapFromDxgiSurface(m_pD2DDeviceContext, m_pDXGISwapChain);
+		m_pDXGISwapChain = DXUT::DXGICreateSwapChainForHWND(DXUT::D3D11GetDXGIDeviceStatic(), DXUT::D3D11GetDeviceStatic(), m_Wnd);
+		m_pD2DTargetBitmap = DXUT::D2DCreateBitmapFromDXGISurface(m_pD2DDeviceContext, m_pDXGISwapChain);
 		m_pD2DDeviceContext->SetTarget(m_pD2DTargetBitmap);
 		m_pD2DDeviceContext->SetDpi(flDPI, flDPI);
 		m_pD2DDeviceContext->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
@@ -1927,9 +1948,9 @@ namespace DWFONTCHOOSE {
 		}
 	}
 
-	void CDWFontChooseSampleText::SetFontInfo(const DWFONTINFO& fi)
+	void CDWFontChooseSampleText::SetFontInfo(const DWFONTINFO& dwfi)
 	{
-		m_pTextFormat = DXUT::DWCreateTextFormat(fi);
+		m_pTextFormat = DXUT::DWCreateTextFormat(DXUT::DWGetFactoryStatic(), dwfi);
 		CreateTextLayout();
 		m_D2DTextRenderer.SetDrawContext({ .pDeviceContext { m_pD2DDeviceContext }, .pBrushTextDef { m_pD2DBrushBlack } });
 	}
@@ -2021,7 +2042,7 @@ namespace DWFONTCHOOSE {
 		}
 
 		const auto rcClient = m_Wnd.GetClientRect();
-		m_pLayoutData = DXUT::DWCreateTextLayout(m_wstrData, m_pTextFormat,
+		m_pLayoutData = DXUT::DWCreateTextLayout(DXUT::DWGetFactoryStatic(), m_wstrData, m_pTextFormat,
 			DIPFromPixels(rcClient.Width()), DIPFromPixels(rcClient.Height()));
 		m_pLayoutData->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
 		m_pLayoutData->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
@@ -2649,7 +2670,7 @@ namespace DWFONTCHOOSE {
 		m_pD2DDeviceContext->SetTarget(nullptr);
 		m_pD2DTargetBitmap.safe_release();
 		m_pDXGISwapChain->ResizeBuffers(0, wWidth, wHeight, DXGI_FORMAT_UNKNOWN, 0);
-		m_pD2DTargetBitmap = DXUT::D2DCreateBitmapFromDxgiSurface(m_pD2DDeviceContext, m_pDXGISwapChain);
+		m_pD2DTargetBitmap = DXUT::D2DCreateBitmapFromDXGISurface(m_pD2DDeviceContext, m_pDXGISwapChain);
 		m_pD2DDeviceContext->SetTarget(m_pD2DTargetBitmap);
 		RecalcScroll();
 
@@ -2773,7 +2794,7 @@ namespace DWFONTCHOOSE {
 		CDWFontChooseSampleText m_SampleText;
 		DWFONTINFO m_fi; //Struct to return, after the dialog closes.
 		DWFONTCHOOSEINFO m_fci;
-		std::vector<DXUT::DWFONTFAMILYINFO> m_vecFFI; //All system fonts.
+		std::vector<DXUT::DWFONTFAMILY> m_vecFontFamily; //All system fonts.
 		std::vector<FONTDATA> m_vecFamilies; //Currently displayed font families strings.
 		std::vector<FONTDATA> m_vecFaces;    //Currently displayed font faces strings.
 		GDIUT::CSplitter m_SplitHorz;
@@ -2858,24 +2879,24 @@ namespace DWFONTCHOOSE {
 
 
 		const auto& fd = m_vecFaces[idx];
-		const auto pFamilyInfo = fd.pFamilyInfo;
-		const auto pFaceInfo = fd.pFaceInfo;
-		SetComboWeightSel(std::stoi(pFaceInfo->wstrWeight));
-		SetComboStretchSel(std::stoi(pFaceInfo->wstrStretch));
-		SetComboStyleSel(std::stoi(pFaceInfo->wstrStyle));
+		const auto pFontFamily = fd.pFontFamily;
+		const auto pFontFace = fd.pFontFace;
+		SetComboWeightSel(std::stoi(pFontFace->wstrWeight));
+		SetComboStretchSel(std::stoi(pFontFace->wstrStretch));
+		SetComboStyleSel(std::stoi(pFontFace->wstrStyle));
 
-		m_Wnd.GetDlgItem(IDC_STATIC_FAM_NAME_DATA).SetWndText(pFamilyInfo->wstrFamilyName);
-		m_Wnd.GetDlgItem(IDC_STATIC_TYPO_FAM_NAME_DATA).SetWndText(pFaceInfo->wstrTypographicFamilyName);
-		m_Wnd.GetDlgItem(IDC_STATIC_W_S_S_FACE_NAME_DATA).SetWndText(pFaceInfo->wstrWeightStretchStyleFaceName);
-		m_Wnd.GetDlgItem(IDC_STATIC_FULL_NAME_DATA).SetWndText(pFaceInfo->wstrFullName);
-		m_Wnd.GetDlgItem(IDC_STATIC_WIN32_FAM_NAME_DATA).SetWndText(pFaceInfo->wstrWin32FamilyName);
-		m_Wnd.GetDlgItem(IDC_STATIC_PS_NAME_DATA).SetWndText(pFaceInfo->wstrPostScriptName);
+		m_Wnd.GetDlgItem(IDC_STATIC_FAM_NAME_DATA).SetWndText(pFontFamily->wstrFamilyName);
+		m_Wnd.GetDlgItem(IDC_STATIC_TYPO_FAM_NAME_DATA).SetWndText(pFontFace->wstrTypographicFamilyName);
+		m_Wnd.GetDlgItem(IDC_STATIC_W_S_S_FACE_NAME_DATA).SetWndText(pFontFace->wstrWeightStretchStyleFaceName);
+		m_Wnd.GetDlgItem(IDC_STATIC_FULL_NAME_DATA).SetWndText(pFontFace->wstrFullName);
+		m_Wnd.GetDlgItem(IDC_STATIC_WIN32_FAM_NAME_DATA).SetWndText(pFontFace->wstrWin32FamilyName);
+		m_Wnd.GetDlgItem(IDC_STATIC_PS_NAME_DATA).SetWndText(pFontFace->wstrPostScriptName);
 
 		std::wstring wstrDSLTag = L"[";
 		auto iIndex = 0;
-		for (const auto& wstr : pFaceInfo->vecDesignScriptLangTag) {
+		for (const auto& wstr : pFontFace->vecDesignScriptLangTag) {
 			wstrDSLTag += wstr;
-			if (iIndex++ < pFaceInfo->vecDesignScriptLangTag.size() - 1) {
+			if (iIndex++ < pFontFace->vecDesignScriptLangTag.size() - 1) {
 				wstrDSLTag += L", ";
 			}
 		}
@@ -2884,9 +2905,9 @@ namespace DWFONTCHOOSE {
 
 		std::wstring wstrSSLTag = L"[";
 		iIndex = 0;
-		for (const auto& wstr : pFaceInfo->vecSuppScriptLangTag) {
+		for (const auto& wstr : pFontFace->vecSuppScriptLangTag) {
 			wstrSSLTag += wstr;
-			if (iIndex++ < pFaceInfo->vecSuppScriptLangTag.size() - 1) {
+			if (iIndex++ < pFontFace->vecSuppScriptLangTag.size() - 1) {
 				wstrSSLTag += L", ";
 			}
 		}
@@ -2895,19 +2916,19 @@ namespace DWFONTCHOOSE {
 
 		std::wstring wstrSemTag = L"[";
 		iIndex = 0;
-		for (const auto& wstr : pFaceInfo->vecSemanticTag) {
+		for (const auto& wstr : pFontFace->vecSemanticTag) {
 			wstrSemTag += wstr;
-			if (iIndex++ < pFaceInfo->vecSemanticTag.size() - 1) {
+			if (iIndex++ < pFontFace->vecSemanticTag.size() - 1) {
 				wstrSemTag += L", ";
 			}
 		}
 		wstrSemTag += L"]";
 
 		m_Wnd.GetDlgItem(IDC_STATIC_SEM_TAG_DATA).SetWndText(wstrSemTag);
-		m_Wnd.GetDlgItem(IDC_STATIC_WEIGHTPROP_DATA).SetWndText(pFaceInfo->wstrWeight);
-		m_Wnd.GetDlgItem(IDC_STATIC_STRETCHPROP_DATA).SetWndText(pFaceInfo->wstrStretch);
-		m_Wnd.GetDlgItem(IDC_STATIC_STYLEPROP_DATA).SetWndText(pFaceInfo->wstrStyle);
-		m_Wnd.GetDlgItem(IDC_STATIC_TYPO_FACE_NAME_DATA).SetWndText(pFaceInfo->wstrTypographicFaceName);
+		m_Wnd.GetDlgItem(IDC_STATIC_WEIGHTPROP_DATA).SetWndText(pFontFace->wstrWeight);
+		m_Wnd.GetDlgItem(IDC_STATIC_STRETCHPROP_DATA).SetWndText(pFontFace->wstrStretch);
+		m_Wnd.GetDlgItem(IDC_STATIC_STYLEPROP_DATA).SetWndText(pFontFace->wstrStyle);
+		m_Wnd.GetDlgItem(IDC_STATIC_TYPO_FACE_NAME_DATA).SetWndText(pFontFace->wstrTypographicFaceName);
 		UpdateSampleText();
 	}
 
@@ -2932,7 +2953,7 @@ namespace DWFONTCHOOSE {
 			return { };
 		}
 
-		const auto& wstrFamily = m_vecFamilies[idx].pFamilyInfo->wstrFamilyName;
+		const auto& wstrFamily = m_vecFamilies[idx].pFontFamily->wstrFamilyName;
 		const auto eWeight = static_cast<DWRITE_FONT_WEIGHT>(m_ComboWeight.GetItemData(m_ComboWeight.GetCurSel()));
 		const auto eStretch = static_cast<DWRITE_FONT_STRETCH>(m_ComboStretch.GetItemData(m_ComboStretch.GetCurSel()));
 		const auto eStyle = static_cast<DWRITE_FONT_STYLE>(m_ComboStyle.GetItemData(m_ComboStyle.GetCurSel()));
@@ -3053,28 +3074,28 @@ namespace DWFONTCHOOSE {
 
 	void CDWFontChooseDlg::UpdateFontFamiliesList()
 	{
-		const auto lmbFFIToFD = [](const DXUT::DWFONTFAMILYINFO& FFamilyInfo) {
-			const auto& FFaceInfo = FFamilyInfo.vecFontFaceInfo.at(0);
-			return FONTDATA { .wstrString { FFamilyInfo.wstrFamilyName },
-				.pFamilyInfo { &FFamilyInfo }, .pFaceInfo { &FFaceInfo } }; };
+		const auto lmbFFIToFD = [](const DXUT::DWFONTFAMILY& FontFamily) {
+			const auto& FontFace = FontFamily.vecFontFace.at(0);
+			return FONTDATA { .wstrString { FontFamily.wstrFamilyName },
+				.pFontFamily { &FontFamily }, .pFontFace { &FontFace } }; };
 		m_vecFamilies.clear();
 
 		using enum EDWFontFamily;
 		switch (GetComboFamilySelection()) {
 		case FAMILY_ALL:
-			std::ranges::copy(m_vecFFI | std::views::transform(lmbFFIToFD), std::back_inserter(m_vecFamilies));
+			std::ranges::copy(m_vecFontFamily | std::views::transform(lmbFFIToFD), std::back_inserter(m_vecFamilies));
 			break;
 		case FAMILY_MONOSPACED:
 		{
-			auto filter = m_vecFFI | std::views::filter([](const DXUT::DWFONTFAMILYINFO& ffi) {
-				return ffi.fIsMonospaced; });
+			auto filter = m_vecFontFamily | std::views::filter([](const DXUT::DWFONTFAMILY& FontFamily) {
+				return FontFamily.fIsMonospaced; });
 			std::ranges::copy(filter | std::views::transform(lmbFFIToFD), std::back_inserter(m_vecFamilies));
 		}
 		break;
 		case FAMILY_NONMONOSPACED:
 		{
-			auto filter = m_vecFFI | std::views::filter([](const DXUT::DWFONTFAMILYINFO& ffi) {
-				return !ffi.fIsMonospaced; });
+			auto filter = m_vecFontFamily | std::views::filter([](const DXUT::DWFONTFAMILY& FontFamily) {
+				return !FontFamily.fIsMonospaced; });
 			std::ranges::copy(filter | std::views::transform(lmbFFIToFD), std::back_inserter(m_vecFamilies));
 		}
 		break;
@@ -3103,18 +3124,18 @@ namespace DWFONTCHOOSE {
 			return;
 		}
 
-		const auto pFamilyInfo = m_vecFamilies.at(idx).pFamilyInfo;
-		const auto lmbFFIToFD = [=](const DXUT::DWFONTFACEINFO& FFaceInfo) {
-			return FONTDATA { .wstrString { FFaceInfo.wstrWeightStretchStyleFaceName },
-				.pFamilyInfo { pFamilyInfo }, .pFaceInfo { &FFaceInfo } }; };
-		std::ranges::copy(pFamilyInfo->vecFontFaceInfo | std::views::transform(lmbFFIToFD), std::back_inserter(m_vecFaces));
+		const auto pFontFamily = m_vecFamilies.at(idx).pFontFamily;
+		const auto lmbFFIToFD = [=](const DXUT::DWFONTFACE& FontFace) {
+			return FONTDATA { .wstrString { FontFace.wstrWeightStretchStyleFaceName },
+				.pFontFamily { pFontFamily }, .pFontFace { &FontFace } }; };
+		std::ranges::copy(pFontFamily->vecFontFace | std::views::transform(lmbFFIToFD), std::back_inserter(m_vecFaces));
 		m_FontFaces.SetData(m_vecFaces);
 		SetStatTextFontFacesTotal(m_vecFaces.size());
 	}
 
 	void CDWFontChooseDlg::UpdateSampleText()
 	{
-		if (m_vecFFI.empty()) {
+		if (m_vecFontFamily.empty()) {
 			return;
 		}
 
@@ -3180,7 +3201,7 @@ namespace DWFONTCHOOSE {
 
 	auto CDWFontChooseDlg::WMDestroy()->INT_PTR
 	{
-		m_vecFFI.clear();
+		m_vecFontFamily.clear();
 		return TRUE;
 	};
 
@@ -3270,8 +3291,8 @@ namespace DWFONTCHOOSE {
 		m_ComboStyle.SetItemData(iIndex, DWRITE_FONT_STYLE_ITALIC);
 
 		m_SampleText.Create(m_Wnd, IDC_CUSTOM_FONT_SAMPLE);
-		m_vecFFI = DXUT::DWGetSystemFonts(m_fci.wstrLocale.data());
-		std::ranges::sort(m_vecFFI, [](const DXUT::DWFONTFAMILYINFO& lhs, const DXUT::DWFONTFAMILYINFO& rhs) {
+		m_vecFontFamily = DXUT::DWGetSystemFonts(DXUT::DWGetFactoryStatic(), m_fci.wstrLocale.data());
+		std::ranges::sort(m_vecFontFamily, [](const DXUT::DWFONTFAMILY& lhs, const DXUT::DWFONTFAMILY& rhs) {
 			return lhs.wstrFamilyName < rhs.wstrFamilyName;	});
 
 		m_FontFamilies.Create(m_Wnd, IDC_CUSTOM_FONT_FAMILY);
